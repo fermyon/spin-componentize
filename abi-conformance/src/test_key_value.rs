@@ -232,7 +232,7 @@ pub(crate) async fn test(
                 .get_keys_map
                 .insert(42, vec!["foo".into(), "bar".into()]);
 
-            crate::run_command(store, pre, &["key-value-get_keys", "42"], |store| {
+            crate::run_command(store, pre, &["key-value-get-keys", "42"], |store| {
                 ensure!(
                     store.data().key_value.get_keys_map.is_empty(),
                     "expected module to call `key_value::get_keys` exactly once"

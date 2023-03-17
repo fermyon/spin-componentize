@@ -99,7 +99,7 @@ pub(crate) struct Redis {
     sadd_map: HashMap<(String, String, Vec<String>), i64>,
     srem_map: HashMap<(String, String, Vec<String>), i64>,
     smembers_map: HashMap<(String, String), Vec<String>>,
-    execute_map: HashMap<(String, String, Vec<String>), Vec<RedisResult>>,
+    execute_map: HashMap<(String, String, Vec<Vec<u8>>), Vec<RedisResult>>,
 }
 
 #[async_trait]
@@ -192,7 +192,16 @@ impl redis::Host for Redis {
             .remove(&(
                 address,
                 command,
-                arguments.iter().map(|v| format!("{v:?}")).collect(),
+                arguments
+                    .into_iter()
+                    .filter_map(|v| {
+                        if let RedisParameter::Binary(bytes) = v {
+                            Some(bytes)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
             ))
             .ok_or(Error::Error))
     }
@@ -315,7 +324,7 @@ pub(crate) async fn test(
             crate::run_command(
                 store,
                 pre,
-                &["redis-del", "127.0.0.1", "foo", "bar", "baz"],
+                &["redis-sadd", "127.0.0.1", "foo", "bar", "baz"],
                 |store| {
                     ensure!(
                         store.data().redis.sadd_map.is_empty(),
@@ -341,7 +350,7 @@ pub(crate) async fn test(
             crate::run_command(
                 store,
                 pre,
-                &["redis-del", "127.0.0.1", "foo", "bar", "baz"],
+                &["redis-srem", "127.0.0.1", "foo", "bar", "baz"],
                 |store| {
                     ensure!(
                         store.data().redis.srem_map.is_empty(),
@@ -360,14 +369,19 @@ pub(crate) async fn test(
                 vec!["bar".to_owned(), "baz".to_owned()],
             );
 
-            crate::run_command(store, pre, &["redis-del", "127.0.0.1", "foo"], |store| {
-                ensure!(
-                    store.data().redis.smembers_map.is_empty(),
-                    "expected module to call `redis::smembers` exactly once"
-                );
+            crate::run_command(
+                store,
+                pre,
+                &["redis-smembers", "127.0.0.1", "foo"],
+                |store| {
+                    ensure!(
+                        store.data().redis.smembers_map.is_empty(),
+                        "expected module to call `redis::smembers` exactly once"
+                    );
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .await
         },
 
@@ -376,7 +390,7 @@ pub(crate) async fn test(
                 (
                     "127.0.0.1".into(),
                     "append".to_owned(),
-                    vec!["foo".to_owned(), "baz".to_owned()],
+                    vec![b"foo".to_vec(), b"baz".to_vec()],
                 ),
                 vec![RedisResult::Int64(3)],
             );
