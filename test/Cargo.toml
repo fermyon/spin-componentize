@@ -1,0 +1,17 @@
+[package]
+name = "test"
+version = "0.1.0"
+
+edition = "2021"
+
+[dependencies]
+wast = "52.0.2"
+wasmprinter = "0.2.49"
+anyhow = "1.0.69"
+
+[dev-dependencies]
+anyhow = "1.0.69"
+wit-component = { git = "https://github.com/dicej/wasm-tools", branch = "cabi-post" }
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "8d3a881b524d56498dfc71b65818b2abbeb1da44", features = ["component-model"] }
+tokio = { version = "1", features = ["macros", "rt", "fs"] }
+spin-abi-conformance = { path = "../abi-conformance" }

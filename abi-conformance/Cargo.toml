@@ -1,14 +1,22 @@
 [package]
-name = "adapter-test"
+name = "spin-abi-conformance"
 version = "0.1.0"
 edition = "2021"
 
-[dev-dependencies]
+[dependencies]
 anyhow = "1.0.69"
-wit-component = { path = "../../wasm-tools/crates/wit-component" }#{ git = "https://github.com/dicej/wasm-tools", branch = "cabi-post" }
 async-trait = "0.1.66"
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "8d3a881b524d56498dfc71b65818b2abbeb1da44", features = ["component-model"] }
-tokio = { version = "1", features = ["macros", "rt", "fs"] }
+tokio = { version = "1", features = ["macros", "rt", "fs", "rt-multi-thread"] }
 host = { path = "../adapter/host" }
 wasi-common = { path = "../adapter/wasi-common" }
 wasi-cap-std-sync = { path = "../adapter/wasi-common/cap-std-sync" }
+clap = { version = "3.1.15", features = ["derive", "env"] }
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+rand_core = "0.6.3"
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = "1.0.82"
+tempfile = "3.3.0"
+toml = "0.5.9"
+cap-std = "1.0.5"

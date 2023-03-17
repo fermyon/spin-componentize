@@ -17,20 +17,20 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .current_dir("../adapter-test-case")
+        .current_dir("../test-case")
         .arg("--release")
         .arg("--target=wasm32-wasi")
         .env("CARGO_TARGET_DIR", &out_dir);
 
     let status = cmd.status().unwrap();
     assert!(status.success());
-    println!("cargo:rerun-if-changed=../adapter-test-case");
-    let test_case = out_dir.join("wasm32-wasi/release/adapter_test_case.wasm");
+    println!("cargo:rerun-if-changed=../test-case");
+    let test_case = out_dir.join("wasm32-wasi/release/test_case.wasm");
 
     let src = format!(
         "
-            pub const ADAPTER: &str = {adapter:?};
-            pub const TEST_CASE: &str = {test_case:?};
+            const ADAPTER: &str = {adapter:?};
+            const TEST_CASE: &str = {test_case:?};
         ",
     );
 

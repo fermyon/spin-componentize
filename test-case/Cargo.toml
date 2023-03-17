@@ -1,5 +1,5 @@
 [package]
-name = "adapter-test-case"
+name = "test-case"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = [ "cdylib" ]
 
 [dependencies]
-anyhow = "1"
-bytes = "1"
-http = "0.2"
-spin-sdk = { git = "https://github.com/fermyon/spin", tag = "v0.10.1" }
+anyhow = "1.0.44"
+clap = { version = "3.2.20", features = ["derive", "env"] }
+getrandom = "0.2.7"
+serde_json = "1.0.94"
 wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen", rev = "cb871cfa1ee460b51eb1d144b175b9aab9c50aba" }
