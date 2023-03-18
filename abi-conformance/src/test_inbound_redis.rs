@@ -19,12 +19,14 @@ pub(crate) async fn test(
 ) -> Result<(), String> {
     super::run(async {
         let (reactor, _) = Reactor::instantiate_pre(&mut *store, pre).await?;
-        reactor
+        match reactor
             .inbound_redis
             .call_handle_message(store, b"Hello, SpinRedis!")
-            .await??;
-
-        Ok(())
+            .await?
+        {
+            Ok(()) | Err(redis_types::Error::Success) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
     })
     .await
 }

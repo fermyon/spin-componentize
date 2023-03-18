@@ -17,20 +17,36 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .current_dir("../test-case")
+        .current_dir("../rust-case")
         .arg("--release")
         .arg("--target=wasm32-wasi")
         .env("CARGO_TARGET_DIR", &out_dir);
 
     let status = cmd.status().unwrap();
     assert!(status.success());
-    println!("cargo:rerun-if-changed=../test-case");
-    let test_case = out_dir.join("wasm32-wasi/release/test_case.wasm");
+    println!("cargo:rerun-if-changed=../rust-case");
+    let rust_case = out_dir.join("wasm32-wasi/release/test_case.wasm");
+
+    let mut cmd = Command::new("tinygo");
+    cmd.arg("build")
+        .current_dir("../go-case")
+        .arg("-target=wasi")
+        .arg("-gc=leaking")
+        .arg("-no-debug")
+        .arg("-o")
+        .arg(out_dir.join("go_case.wasm"))
+        .arg("main.go");
+
+    let status = cmd.status().unwrap();
+    assert!(status.success());
+    println!("cargo:rerun-if-changed=../go-case");
+    let go_case = out_dir.join("go_case.wasm");
 
     let src = format!(
         "
             const ADAPTER: &str = {adapter:?};
-            const TEST_CASE: &str = {test_case:?};
+            const RUST_CASE: &str = {rust_case:?};
+            const GO_CASE: &str = {go_case:?};
         ",
     );
 

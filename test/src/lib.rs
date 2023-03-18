@@ -70,14 +70,10 @@ mod tests {
 
     include!(concat!(env!("OUT_DIR"), "/wasms.rs"));
 
-    #[tokio::test]
-    async fn it_works() -> Result<()> {
+    async fn run(module: &[u8]) -> Result<()> {
         let component = ComponentEncoder::default()
             .validate(true)
-            .module(&retarget_imports(
-                "wasi_snapshot_preview1",
-                &fs::read(TEST_CASE).await?,
-            )?)?
+            .module(&retarget_imports("wasi_snapshot_preview1", module)?)?
             .adapter("wasi_snapshot_preview1", &fs::read(ADAPTER).await?)?
             .encode()?;
 
@@ -147,5 +143,15 @@ mod tests {
         } else {
             Err(anyhow!("{report:#?}"))
         }
+    }
+
+    #[tokio::test]
+    async fn rust() -> Result<()> {
+        run(&fs::read(RUST_CASE).await?).await
+    }
+
+    #[tokio::test]
+    async fn go() -> Result<()> {
+        run(&fs::read(GO_CASE).await?).await
     }
 }

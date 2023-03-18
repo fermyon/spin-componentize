@@ -16,7 +16,6 @@ struct SpinHttp;
 
 impl spin_http::SpinHttp for SpinHttp {
     fn handle_http_request(request: Request) -> Response {
-        //eprintln!("handle request: {}", request.uri);
         if request.method != Method::Post {
             Response {
                 status: 405,
@@ -335,8 +334,8 @@ enum Command {
 fn dispatch(body: Option<Vec<u8>>) -> Response {
     match execute(body) {
         Ok(()) => {
-            io::stdout().flush();
-            io::stderr().flush();
+            _ = io::stdout().flush();
+            _ = io::stderr().flush();
 
             Response {
                 status: 200,
