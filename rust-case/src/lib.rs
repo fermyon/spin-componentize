@@ -6,7 +6,7 @@ use std::{
     env, error, fmt,
     fs::{self, File},
     io::{self, Write},
-    iter,
+    iter, str,
     time::SystemTime,
 };
 
@@ -354,11 +354,11 @@ fn dispatch(body: Option<Vec<u8>>) -> Response {
 
 fn execute(body: Option<Vec<u8>>) -> Result<()> {
     let body = body.ok_or_else(|| anyhow!("empty request body"))?;
-    let commands = iter::once("<wasm module>")
-        .chain(serde_json::from_slice::<Vec<&str>>(&body)?)
+    let command = iter::once("<wasm module>")
+        .chain(str::from_utf8(&body)?.split("%20"))
         .collect::<Vec<_>>();
 
-    match &Cli::try_parse_from(commands)?.command {
+    match &Cli::try_parse_from(command)?.command {
         Command::Config { key } => {
             spin_config::get_config(key)?;
         }

@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"encoding/json"
 	"errors"
+	"strings"
+	"io"
+	"os"
 
 	spinredis "github.com/fermyon/spin/sdk/go/redis"
 	spinhttp "github.com/fermyon/spin/sdk/go/http"
@@ -16,12 +18,12 @@ func init() {
 		if r.Method != "POST" {
 			w.WriteHeader(405)
 		} else if r.URL.Path == "/" {
-			var v []string
-			err := json.NewDecoder(r.Body).Decode(&v)
+			bytes, err := io.ReadAll(r.Body)
 			if err == nil {
-				dispatch(w, v)
+				dispatch(w, strings.Split(string(bytes), "%20"))
 			} else {
 				w.WriteHeader(500)
+				fmt.Fprint(w, err)
 			}
 		} else if r.URL.Path != "/foo" {
 			w.WriteHeader(404)
@@ -45,17 +47,23 @@ func dispatch(w http.ResponseWriter, v []string) {
 		w.WriteHeader(200)
 	} else {
 		w.WriteHeader(500)
-		fmt.Fprintln(w, err)
+		fmt.Fprint(w, err)
 	}
 }
 
 func execute(v []string) error {
-	if v[0] == "config" {
+	switch v[0] {
+	case "config":
 		spinconfig.Get(v[1])
-		return nil
-	} else {
-		return errors.New(fmt.Sprintf("command not yet supported: %f", v[0]))
+	case "http":
+		spinhttp.Get(v[1])
+	case "wasi-env":
+		fmt.Print(os.Getenv(v[1]))
+	default:
+		return errors.New(fmt.Sprintf("command not yet supported: %s", v[0]))
 	}
+
+	return nil
 }
 
 func main() {}

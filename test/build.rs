@@ -25,7 +25,7 @@ fn main() {
     let status = cmd.status().unwrap();
     assert!(status.success());
     println!("cargo:rerun-if-changed=../rust-case");
-    let rust_case = out_dir.join("wasm32-wasi/release/test_case.wasm");
+    let rust_case = out_dir.join("wasm32-wasi/release/rust_case.wasm");
 
     let mut cmd = Command::new("tinygo");
     cmd.arg("build")

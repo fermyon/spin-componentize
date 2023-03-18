@@ -228,7 +228,7 @@ async fn run_command(
                             uri: "/",
                             headers: &[],
                             params: &[],
-                            body: Some(&serde_json::to_vec(arguments)?),
+                            body: Some(arguments.join("%20").as_bytes()),
                         },
                     )
                     .await
