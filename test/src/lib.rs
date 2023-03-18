@@ -23,22 +23,27 @@ pub fn retarget_imports(target: &str, module: &[u8]) -> Result<Vec<u8>> {
 
     let mut names = Vec::new();
 
-    for field in &*fields {
-        if let ModuleField::Import(Import { module, field, .. }) = field {
-            if *module != target {
-                names.push(format!("{module}:{field}"));
+    for (index, field) in fields.iter().enumerate() {
+        match field {
+            ModuleField::Import(Import { module, field, .. }) => {
+                if *module != target {
+                    names.push((index, format!("{module}:{field}")));
+                }
             }
+
+            ModuleField::Func(_) => break,
+
+            _ => (),
         }
     }
 
-    let mut names = names.iter();
-
-    for field in fields {
-        if let ModuleField::Import(Import { module, field, .. }) = field {
-            if *module != target {
-                *module = target;
-                *field = names.next().unwrap();
-            }
+    for (index, name) in &names {
+        if let ModuleField::Import(Import { module, field, .. }) = &mut fields[*index] {
+            assert!(*module != target);
+            *module = target;
+            *field = name;
+        } else {
+            unreachable!()
         }
     }
 
