@@ -5,7 +5,8 @@ use spin_http::{Method, Request, Response};
 use std::{
     env, error, fmt,
     fs::{self, File},
-    io, iter,
+    io::{self, Write},
+    iter,
     time::SystemTime,
 };
 
@@ -333,11 +334,16 @@ enum Command {
 
 fn dispatch(body: Option<Vec<u8>>) -> Response {
     match execute(body) {
-        Ok(()) => Response {
-            status: 200,
-            headers: None,
-            body: None,
-        },
+        Ok(()) => {
+            io::stdout().flush();
+            io::stderr().flush();
+
+            Response {
+                status: 200,
+                headers: None,
+                body: None,
+            }
+        }
 
         Err(e) => Response {
             status: 500,

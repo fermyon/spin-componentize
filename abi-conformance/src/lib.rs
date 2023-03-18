@@ -19,6 +19,8 @@
 //! The host then asserts that host function was indeed called with the expected arguments (see
 //! [`Report::http`] for an example).
 
+#![deny(warnings)]
+
 use anyhow::{bail, Context as _, Result};
 use http_types::{Method, RequestParam};
 use serde::{Deserialize, Serialize};
