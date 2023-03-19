@@ -1,4 +1,4 @@
-use std::{env, fs, path::PathBuf, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
 fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
@@ -13,7 +13,6 @@ fn main() {
     let status = cmd.status().unwrap();
     assert!(status.success());
     println!("cargo:rerun-if-changed=../adapter");
-    let adapter = out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1.wasm");
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
@@ -25,7 +24,6 @@ fn main() {
     let status = cmd.status().unwrap();
     assert!(status.success());
     println!("cargo:rerun-if-changed=../rust-case");
-    let rust_case = out_dir.join("wasm32-wasi/release/rust_case.wasm");
 
     let mut cmd = Command::new("tinygo");
     cmd.arg("build")
@@ -40,15 +38,4 @@ fn main() {
     let status = cmd.status().unwrap();
     assert!(status.success());
     println!("cargo:rerun-if-changed=../go-case");
-    let go_case = out_dir.join("go_case.wasm");
-
-    let src = format!(
-        "
-            const ADAPTER: &str = {adapter:?};
-            const RUST_CASE: &str = {rust_case:?};
-            const GO_CASE: &str = {go_case:?};
-        ",
-    );
-
-    fs::write(out_dir.join("wasms.rs"), src).unwrap();
 }

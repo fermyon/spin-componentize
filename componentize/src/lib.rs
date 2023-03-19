@@ -12,6 +12,11 @@ use {
 
 mod convert;
 
+const ADAPTER: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/wasm32-unknown-unknown/release/wasi_snapshot_preview1.wasm"
+));
+
 static ADAPTER_NAME: &str = "wasi_snapshot_preview1";
 static CUSTOM_SECTION_NAME: &str = "component-type:reactor";
 static WORLD_NAME: &str = "reactor";
@@ -21,10 +26,10 @@ static EXPORT_INTERFACES: &[(&str, &str)] = &[
     ("handle-http-request", "inbound-http"),
 ];
 
-pub fn componentize(module: &[u8], adapter: &[u8]) -> Result<Vec<u8>> {
+pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     let (module, exports) = retarget_imports_and_get_exports(ADAPTER_NAME, module)?;
 
-    let (adapter, mut bindgen) = metadata::decode(adapter)?;
+    let (adapter, mut bindgen) = metadata::decode(ADAPTER)?;
 
     let allowed = exports
         .into_iter()
@@ -142,8 +147,6 @@ mod tests {
         wasmtime::{component::Component, Config, Engine},
     };
 
-    include!(concat!(env!("OUT_DIR"), "/wasms.rs"));
-
     async fn run(module: &[u8]) -> Result<()> {
         let mut config = Config::new();
         config.wasm_component_model(true);
@@ -151,10 +154,7 @@ mod tests {
 
         let engine = Engine::new(&config)?;
 
-        let component = Component::new(
-            &engine,
-            crate::componentize(module, &fs::read(ADAPTER).await?)?,
-        )?;
+        let component = Component::new(&engine, crate::componentize(module)?)?;
 
         let report = spin_abi_conformance::test(
             &component,
@@ -218,11 +218,16 @@ mod tests {
 
     #[tokio::test]
     async fn rust() -> Result<()> {
-        run(&fs::read(RUST_CASE).await?).await
+        run(&fs::read(concat!(
+            env!("OUT_DIR"),
+            "/wasm32-wasi/release/rust_case.wasm"
+        ))
+        .await?)
+        .await
     }
 
     #[tokio::test]
     async fn go() -> Result<()> {
-        run(&fs::read(GO_CASE).await?).await
+        run(&fs::read(concat!(env!("OUT_DIR"), "/go_case.wasm")).await?).await
     }
 }
