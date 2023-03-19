@@ -1,8 +1,8 @@
 use crate::{
-    http_types::{Method, RequestParam},
-    Context, Reactor,
+    http_types::{Method, RequestParam, Response},
+    Context,
 };
-use anyhow::ensure;
+use anyhow::{anyhow, ensure};
 use wasmtime::{component::InstancePre, Store};
 
 pub(crate) async fn test(
@@ -10,18 +10,24 @@ pub(crate) async fn test(
     pre: &InstancePre<Context>,
 ) -> Result<(), String> {
     crate::run(async {
-        let (reactor, _) = Reactor::instantiate_pre(&mut *store, pre).await?;
-        let response = reactor
-            .inbound_http
-            .call_handle_request(
+        let instance = pre.instantiate_async(&mut *store).await?;
+
+        let func = instance
+            .exports(&mut *store)
+            .instance("inbound-http")
+            .ok_or_else(|| anyhow!("no inbound-http instance found"))?
+            .typed_func::<(RequestParam,), (Response,)>("handle-request")?;
+
+        let (response,) = func
+            .call_async(
                 store,
-                RequestParam {
+                (RequestParam {
                     method: Method::Post,
                     uri: "/foo",
                     headers: &[("foo", "bar")],
                     params: &[],
                     body: Some(b"Hello, SpinHttp!"),
-                },
+                },),
             )
             .await?;
 

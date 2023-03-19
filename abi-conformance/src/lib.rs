@@ -21,8 +21,8 @@
 
 #![deny(warnings)]
 
-use anyhow::{bail, Context as _, Result};
-use http_types::{Method, RequestParam};
+use anyhow::{anyhow, bail, Context as _, Result};
+use http_types::{Method, RequestParam, Response};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, str};
 use test_config::Config;
@@ -64,7 +64,7 @@ wasmtime::component::bindgen!({
 #[derive(Copy, Clone, Default, Deserialize)]
 pub enum InvocationStyle {
     /// The host should call into the guest using inbound-http.wit's `handle-request` function, passing arguments
-    /// via the request body as a JSON array of strings.
+    /// via the request body as a string of tokens separated by the delimiter "%20".
     #[default]
     InboundHttp,
 }
@@ -215,45 +215,52 @@ async fn run_command(
         let stderr = WritePipe::new_in_memory();
         store.data_mut().wasi.set_stderr(Box::new(stderr.clone()));
 
-        let (reactor, _) = Reactor::instantiate_pre(&mut *store, pre).await?;
+        let instance = pre.instantiate_async(&mut *store).await?;
 
-        let result = match store.data().test_config.invocation_style {
+        match store.data().test_config.invocation_style {
             InvocationStyle::InboundHttp => {
-                reactor
-                    .inbound_http
-                    .call_handle_request(
+                let func = instance
+                    .exports(&mut *store)
+                    .instance("inbound-http")
+                    .ok_or_else(|| anyhow!("no inbound-http instance found"))?
+                    .typed_func::<(RequestParam,), (Response,)>("handle-request")?;
+
+                let result = func
+                    .call_async(
                         &mut *store,
-                        RequestParam {
+                        (RequestParam {
                             method: Method::Post,
                             uri: "/",
                             headers: &[],
                             params: &[],
                             body: Some(arguments.join("%20").as_bytes()),
-                        },
+                        },),
                     )
-                    .await
+                    .await;
+
+                // Reset `Context::wasi` so the next test has a clean slate and also to ensure there are no more
+                // references to the `stderr` pipe, ensuring `try_into_inner` succeeds below.  This is also needed
+                // in case the caller attached its own pipes for e.g. stdin and/or stdout and expects exclusive
+                // ownership once we return.
+                store.data_mut().wasi = WasiCtxBuilder::new().build();
+
+                let (response,) = result.with_context(|| {
+                    String::from_utf8_lossy(&stderr.try_into_inner().unwrap().into_inner())
+                        .into_owned()
+                })?;
+
+                if response.status != 200 {
+                    bail!(
+                        "status: {}; body: {}",
+                        response.status,
+                        response
+                            .body
+                            .as_deref()
+                            .map(|body| String::from_utf8_lossy(body))
+                            .unwrap_or_default()
+                    );
+                }
             }
-        };
-
-        // Reset `Context::wasi` so the next test has a clean slate and also to ensure there are no more references
-        // to the `stderr` pipe, ensuring `try_into_inner` succeeds below.  This is also needed in case the caller
-        // attached its own pipes for e.g. stdin and/or stdout and expects exclusive ownership once we return.
-        store.data_mut().wasi = WasiCtxBuilder::new().build();
-
-        let result = result.with_context(|| {
-            String::from_utf8_lossy(&stderr.try_into_inner().unwrap().into_inner()).into_owned()
-        })?;
-
-        if result.status != 200 {
-            bail!(
-                "status: {}; body: {}",
-                result.status,
-                result
-                    .body
-                    .as_deref()
-                    .map(|body| String::from_utf8_lossy(body))
-                    .unwrap_or_default()
-            );
         }
 
         fun(store)

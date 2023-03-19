@@ -1226,6 +1226,7 @@ dependencies = [
  "wasmtime",
  "wast 52.0.3",
  "wit-component",
+ "wit-parser 0.6.4 (git+https://github.com/dicej/wasm-tools?branch=cabi-post)",
 ]
 
 [[package]]

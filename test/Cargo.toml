@@ -12,6 +12,7 @@ anyhow = "1.0.69"
 [dev-dependencies]
 anyhow = "1.0.69"
 wit-component = { git = "https://github.com/dicej/wasm-tools", branch = "cabi-post" }
+wit-parser = { git = "https://github.com/dicej/wasm-tools", branch = "cabi-post" }
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "8d3a881b524d56498dfc71b65818b2abbeb1da44", features = ["component-model"] }
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "../abi-conformance" }
