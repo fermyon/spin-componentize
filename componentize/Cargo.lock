@@ -1149,6 +1149,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin-componentize"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "spin-abi-conformance",
+ "tokio",
+ "wasm-encoder 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmparser 0.102.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmtime",
+ "wit-component",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1213,20 +1226,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be55cf8942feac5c765c2c993422806843c9a9a45d4d5c407ad6dd2ea95eb9b6"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "test"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "spin-abi-conformance",
- "tokio",
- "wasmprinter",
- "wasmtime",
- "wast 52.0.3",
- "wit-component",
- "wit-parser 0.6.4 (git+https://github.com/dicej/wasm-tools?branch=cabi-post)",
 ]
 
 [[package]]
@@ -1445,15 +1444,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "windows-sys 0.45.0",
-]
-
-[[package]]
-name = "wasm-encoder"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a584273ccc2d9311f1dd19dc3fb26054661fa3e373d53ede5d1144ba07a9acd"
-dependencies = [
- "leb128",
 ]
 
 [[package]]
@@ -1738,18 +1728,6 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "52.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15942180f265280eede7bc38b239e9770031d1821c02d905284216c645316430"
-dependencies = [
- "leb128",
- "memchr",
- "unicode-width",
- "wasm-encoder 0.22.1",
-]
-
-[[package]]
-name = "wast"
 version = "55.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4984d3e1406571f4930ba5cf79bd70f75f41d0e87e17506e0bd19b0e5d085f05"
@@ -1766,7 +1744,7 @@ version = "1.0.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af2b53f4da14db05d32e70e9c617abdf6620c575bd5dd972b7400037b4df2091"
 dependencies = [
- "wast 55.0.0",
+ "wast",
 ]
 
 [[package]]
