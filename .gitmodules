@@ -1,3 +1,0 @@
-[submodule "crates/adapter"]
-	path = adapter
-        url = https://github.com/dicej/preview1.wasm
