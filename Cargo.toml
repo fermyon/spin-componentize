@@ -1,0 +1,69 @@
+[package]
+name = "wasi_snapshot_preview1"
+version.workspace = true
+edition.workspace = true
+
+[workspace]
+members = ["verify", "host", "test-programs", "test-programs/wasi-tests", "test-programs/reactor-tests", "wasi-common", "byte-array", "wasi"]
+
+[workspace.package]
+version = "0.0.0"
+authors = ["The Wasmtime Project Developers"]
+edition = "2021"
+
+[workspace.dependencies]
+anyhow = "1.0.22"
+thiserror = "1.0.15"
+tracing = "0.1.26"
+cap-std = "1.0.5"
+cap-rand = "1.0.5"
+cap-fs-ext = "1.0.5"
+bitflags = "1.2"
+windows-sys = "0.45.0"
+rustix = "0.36.0"
+async-trait = "0.1.59"
+io-lifetimes = { version = "1.0.0", default-features = false }
+wasi-common = { path = "wasi-common" }
+once_cell = "1.12.0"
+system-interface = { version = "0.25.1", features = ["cap_std_impls"] }
+wit-bindgen = { version = "0.4.0", default-features = false }
+
+[dependencies]
+wasi = { version = "0.11.0", default-features = false }
+wit-bindgen = { workspace = true, features = ["macros"] }
+byte-array = { path = "byte-array" }
+
+[build-dependencies]
+wasm-encoder = "0.24"
+object = { version = "0.29.0", default-features = false, features = ["archive"] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+# Omit any unwinding support. This is currently the default for wasm, though
+# that could theoretically change in the future.
+panic = 'abort'
+
+[profile.release.package.wasi_snapshot_preview1]
+opt-level = 's'
+strip = 'debuginfo'
+
+# Make dev look like a release build since this adapter module won't work with
+# a debug build that uses data segments and such.
+[profile.dev.package.wasi_snapshot_preview1]
+incremental = false
+opt-level = 's'
+
+# Omit assertions, which include failure messages which require string
+# initializers.
+debug-assertions = false
+
+# Omit integer overflow checks, which include failure messages which require
+# string initializers.
+overflow-checks = false
+
+[features]
+default = ["reactor"]
+reactor = []
+command = []
