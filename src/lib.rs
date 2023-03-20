@@ -6,7 +6,7 @@ use {
     std::borrow::Cow,
     std::collections::HashSet,
     wasm_encoder::{CustomSection, ExportSection, ImportSection, Module, RawSection},
-    wasmparser::{Parser, Payload},
+    wasmparser::{Encoding, Parser, Payload},
     wit_component::{metadata, ComponentEncoder},
 };
 
@@ -25,6 +25,22 @@ static EXPORT_INTERFACES: &[(&str, &str)] = &[
     ("handle-redis-message", "inbound-redis"),
     ("handle-http-request", "inbound-http"),
 ];
+
+pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>> {
+    for payload in Parser::new(0).parse_all(module_or_component) {
+        match payload? {
+            Payload::Version { encoding, .. } => {
+                return match encoding {
+                    Encoding::Component => Ok(Cow::Borrowed(module_or_component)),
+                    Encoding::Module => componentize(module_or_component).map(Cow::Owned),
+                }
+            }
+            _ => (),
+        }
+    }
+
+    Err(anyhow!("unable to determine Wasm encoding"))
+}
 
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     let (module, exports) = retarget_imports_and_get_exports(ADAPTER_NAME, module)?;
