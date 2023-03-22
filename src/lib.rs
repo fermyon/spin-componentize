@@ -1,7 +1,5 @@
 #![allow(unused_variables)] // TODO: remove this when more things are implemented
 
-mod spin;
-
 use crate::bindings::{
     exit, filesystem, instance_monotonic_clock, instance_wall_clock, monotonic_clock, network,
     poll, random, streams, tcp, wall_clock,
@@ -40,30 +38,7 @@ mod bindings {
         world: "reactor",
         std_feature,
         raw_strings,
-        skip: [
-            "preopens",
-            "get-environment",
-            "http-types",
-            "send-request",
-            "handle-request",
-            "open",
-            "get",
-            "set",
-            "delete",
-            "exists",
-            "get-keys",
-            "close",
-            "publish",
-            "incr",
-            "del",
-            "sadd",
-            "smembers",
-            "srem",
-            "execute",
-            "get-config",
-            "query",
-            "handle-message"
-        ],
+        skip: ["preopens", "get-environment"],
     });
 }
 
@@ -206,7 +181,6 @@ struct ImportAlloc {
     len: Cell<usize>,
     // When not-empty, allocator should use this arena to satisfy allocations.
     arena: Cell<Option<&'static BumpArena>>,
-    use_main: Cell<bool>,
 }
 
 impl ImportAlloc {
@@ -215,7 +189,6 @@ impl ImportAlloc {
             buffer: Cell::new(std::ptr::null_mut()),
             len: Cell::new(0),
             arena: Cell::new(None),
-            use_main: Cell::new(false),
         }
     }
 
@@ -223,9 +196,6 @@ impl ImportAlloc {
     /// Use the provided buffer to satisfy that import allocation. The user is responsible
     /// for making sure allocated imports are not used beyond the lifetime of the buffer.
     fn with_buffer<T>(&self, buffer: *mut u8, len: usize, f: impl FnOnce() -> T) -> T {
-        if self.use_main.get() {
-            unreachable!("main mode");
-        }
         if self.arena.get().is_some() {
             unreachable!("arena mode")
         }
@@ -243,9 +213,6 @@ impl ImportAlloc {
     /// Use the provided BumpArena to satisfry those allocations. The user is responsible
     /// for making sure allocated imports are not used beyond the lifetime of the arena.
     fn with_arena<T>(&self, arena: &BumpArena, f: impl FnOnce() -> T) -> T {
-        if self.use_main.get() {
-            unreachable!("main mode");
-        }
         if !self.buffer.get().is_null() {
             unreachable!("buffer mode")
         }
@@ -261,25 +228,9 @@ impl ImportAlloc {
         r
     }
 
-    fn with_main<T>(&self, f: impl FnOnce() -> T) -> T {
-        if !self.buffer.get().is_null() {
-            unreachable!("buffer mode")
-        }
-        if self.arena.get().is_some() {
-            unreachable!("arena mode")
-        }
-        let prev = self.use_main.get();
-        self.use_main.set(true);
-        let r = f();
-        self.use_main.set(prev);
-        r
-    }
-
     /// To be used by cabi_import_realloc only!
     fn alloc(&self, align: usize, size: usize) -> *mut u8 {
-        if self.use_main.get() {
-            unsafe { cabi_export_realloc(ptr::null_mut(), 0, align, size) }
-        } else if let Some(arena) = self.arena.get() {
+        if let Some(arena) = self.arena.get() {
             arena.alloc(align, size)
         } else {
             let buffer = self.buffer.get();
@@ -299,6 +250,13 @@ impl ImportAlloc {
     }
 }
 
+/// This allocator is only used for the `main` entrypoint.
+///
+/// The implementation here is a bump allocator into `State::long_lived_arena` which
+/// traps when it runs out of data. This means that the total size of
+/// arguments/env/etc coming into a component is bounded by the current 64k
+/// (ish) limit. That's just an implementation limit though which can be lifted
+/// by dynamically calling the main module's allocator as necessary for more data.
 #[no_mangle]
 pub unsafe extern "C" fn cabi_export_realloc(
     old_ptr: *mut u8,
@@ -306,12 +264,12 @@ pub unsafe extern "C" fn cabi_export_realloc(
     align: usize,
     new_size: usize,
 ) -> *mut u8 {
-    let mut ret = ptr::null_mut();
-    State::with(|state| {
-        let prev = state.may_reenter.get();
-        state.may_reenter.set(false);
-        ret = spin::canonical_abi_realloc(old_ptr, old_size, align, new_size);
-        state.may_reenter.set(prev);
+    if !old_ptr.is_null() || old_size != 0 {
+        unreachable!();
+    }
+    let mut ret = null_mut::<u8>();
+    State::with_mut(|state| {
+        ret = state.long_lived_arena.alloc(align, new_size);
         Ok(())
     });
     ret
@@ -390,29 +348,16 @@ pub unsafe extern "C" fn environ_get(environ: *mut *mut u8, environ_buf: *mut u8
     })
 }
 
-fn may_reenter() -> bool {
-    if matches!(
-        unsafe { get_allocation_state() },
-        AllocationState::StackAllocated | AllocationState::StateAllocated
-    ) {
-        let mut ret = false;
-        State::with(|state| {
-            ret = state.may_reenter.get();
-            Ok(())
-        });
-        ret
-    } else {
-        false
-    }
-}
-
 /// Return environment variable data sizes.
 #[no_mangle]
 pub unsafe extern "C" fn environ_sizes_get(
     environc: *mut Size,
     environ_buf_size: *mut Size,
 ) -> Errno {
-    if may_reenter() {
+    if matches!(
+        get_allocation_state(),
+        AllocationState::StackAllocated | AllocationState::StateAllocated
+    ) {
         State::with(|state| {
             let vars = state.get_environment();
             *environc = vars.len();
@@ -466,7 +411,10 @@ pub unsafe extern "C" fn clock_time_get(
     _precision: Timestamp,
     time: &mut Timestamp,
 ) -> Errno {
-    if may_reenter() {
+    if matches!(
+        get_allocation_state(),
+        AllocationState::StackAllocated | AllocationState::StateAllocated
+    ) {
         State::with(|state| {
             match id {
                 CLOCKID_MONOTONIC => {
@@ -813,7 +761,10 @@ pub unsafe extern "C" fn fd_pread(
 /// Return a description of the given preopened file descriptor.
 #[no_mangle]
 pub unsafe extern "C" fn fd_prestat_get(fd: Fd, buf: *mut Prestat) -> Errno {
-    if may_reenter() {
+    if matches!(
+        get_allocation_state(),
+        AllocationState::StackAllocated | AllocationState::StateAllocated
+    ) {
         State::with(|state| {
             if let Some(preopen) = state.get_preopen(fd) {
                 buf.write(Prestat {
@@ -1263,7 +1214,10 @@ pub unsafe extern "C" fn fd_write(
     mut iovs_len: usize,
     nwritten: *mut Size,
 ) -> Errno {
-    if may_reenter() {
+    if matches!(
+        get_allocation_state(),
+        AllocationState::StackAllocated | AllocationState::StateAllocated
+    ) {
         // Advance to the first non-empty buffer.
         while iovs_len != 0 && (*iovs_ptr).buf_len == 0 {
             iovs_ptr = iovs_ptr.add(1);
@@ -1991,7 +1945,10 @@ pub unsafe extern "C" fn sched_yield() -> Errno {
 /// number generator, rather than to provide the random data directly.
 #[no_mangle]
 pub unsafe extern "C" fn random_get(buf: *mut u8, buf_len: Size) -> Errno {
-    if may_reenter() {
+    if matches!(
+        get_allocation_state(),
+        AllocationState::StackAllocated | AllocationState::StateAllocated
+    ) {
         State::with(|state| {
             assert_eq!(buf_len as u32 as Size, buf_len);
             let result = state
@@ -2357,8 +2314,6 @@ struct State {
     /// The string `..` for use by the directory iterator.
     dotdot: [UnsafeCell<u8>; 2],
 
-    may_reenter: Cell<bool>,
-
     /// Another canary constant located at the end of the structure to catch
     /// memory corruption coming from the bottom.
     magic2: u32,
@@ -2491,15 +2446,25 @@ impl State {
 
     #[cold]
     fn new() -> &'static RefCell<State> {
+        #[link(wasm_import_module = "__main_module__")]
+        extern "C" {
+            fn cabi_realloc(
+                old_ptr: *mut u8,
+                old_len: usize,
+                align: usize,
+                new_len: usize,
+            ) -> *mut u8;
+        }
+
         assert!(matches!(
             unsafe { get_allocation_state() },
             AllocationState::StackAllocated
         ));
 
-        unsafe { set_allocation_state(AllocationState::StateAllocating) }
+        unsafe { set_allocation_state(AllocationState::StateAllocating) };
 
         let ret = unsafe {
-            spin::canonical_abi_realloc(
+            cabi_realloc(
                 ptr::null_mut(),
                 0,
                 mem::align_of::<RefCell<State>>(),
@@ -2507,7 +2472,7 @@ impl State {
             ) as *mut RefCell<State>
         };
 
-        unsafe { set_allocation_state(AllocationState::StateAllocated) }
+        unsafe { set_allocation_state(AllocationState::StateAllocated) };
 
         let ret = unsafe {
             ret.write(RefCell::new(State {
@@ -2538,7 +2503,6 @@ impl State {
                 instance_monotonic_clock: Cell::new(None),
                 instance_wall_clock: Cell::new(None),
                 dotdot: [UnsafeCell::new(b'.'), UnsafeCell::new(b'.')],
-                may_reenter: Cell::new(true),
             }));
             &*ret
         };

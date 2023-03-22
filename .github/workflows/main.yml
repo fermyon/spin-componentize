@@ -40,10 +40,12 @@ jobs:
     - uses: actions/checkout@v3
       # TODO: Remove +nightly once lambda-fairy/rust-errno#66 is released and
       # rust-lang/rust#105395 reaches stable.
-    - run: rustup update nightly
-    - run: rustup default nightly
+      # TODO: Remove pin to 2023-03-14 once rust-lang/rust#109199 is released.
+      # TODO: Also remove it in test-programs/macros/build.rs
+    - run: rustup update nightly-2023-03-14
+    - run: rustup default nightly-2023-03-14
     - run: rustup target add --toolchain=stable wasm32-wasi wasm32-unknown-unknown
-    - run: rustup target add --toolchain=nightly wasm32-wasi wasm32-unknown-unknown
+    - run: rustup target add --toolchain=nightly-2023-03-14 wasm32-wasi wasm32-unknown-unknown
 
       # Debug build, default features (reactor)
     - run: cargo build --target wasm32-unknown-unknown
@@ -91,6 +93,34 @@ jobs:
         path: target/wasm32-unknown-unknown/release/wasi_snapshot_preview1.reactor.wasm
 
     - run: |
+        curl -L https://github.com/bytecodealliance/wasm-tools/releases/download/wasm-tools-1.0.27/wasm-tools-1.0.27-x86_64-linux.tar.gz | tar xfz -
+        echo `pwd`/wasm-tools-1.0.27-x86_64-linux >> $GITHUB_PATH
+    - run: |
+        wasm-tools component embed --dummy ./wit/ -w command -o ./dummy_command.wasm
+        wasm-tools component new -o ./dummy_command.component.wasm ./dummy_command.wasm
+        wasm-tools print ./dummy_command.component.wasm
+    - uses: actions/upload-artifact@v3
+      with:
+        name: dummy_command.component.wasm
+        path: dummy_command.component.wasm
+    - run: |
+        wasm-tools component embed --dummy ./wit/ -w proxy -o ./dummy_proxy.wasm
+        wasm-tools component new -o ./dummy_proxy.component.wasm ./dummy_proxy.wasm
+        wasm-tools print ./dummy_proxy.component.wasm
+    - uses: actions/upload-artifact@v3
+      with:
+        name: dummy_proxy.component.wasm
+        path: dummy_proxy.component.wasm
+    - run: |
+        wasm-tools component embed --dummy ./wit/ -w reactor -o ./dummy_reactor.wasm
+        wasm-tools component new -o ./dummy_reactor.component.wasm ./dummy_reactor.wasm
+        wasm-tools print ./dummy_reactor.component.wasm
+    - uses: actions/upload-artifact@v3
+      with:
+        name: dummy_reactor.component.wasm
+        path: dummy_reactor.component.wasm
+
+    - run: |
         curl -L https://github.com/bytecodealliance/wit-bindgen/releases/download/wit-bindgen-cli-0.4.0/wit-bindgen-v0.4.0-x86_64-linux.tar.gz | tar xfz -
         echo `pwd`/wit-bindgen-v0.4.0-x86_64-linux >> $GITHUB_PATH
     - run: wit-bindgen c ./wit --world command
@@ -126,3 +156,6 @@ jobs:
           cli.h
           cli_component_type.o
           cli.rs
+          dummy_command.component.wasm
+          dummy_proxy.component.wasm
+          dummy_reactor.component.wasm

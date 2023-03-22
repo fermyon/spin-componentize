@@ -12,7 +12,6 @@ pub fn print(message: &[u8]) {
 
 /// A minimal `eprint` for debugging.
 #[allow(unused_macros)]
-#[macro_export]
 macro_rules! eprint {
     ($arg:tt) => {{
         // We have to expand string literals into byte arrays to prevent them
@@ -24,7 +23,6 @@ macro_rules! eprint {
 
 /// A minimal `eprintln` for debugging.
 #[allow(unused_macros)]
-#[macro_export]
 macro_rules! eprintln {
     ($arg:tt) => {{
         // We have to expand string literals into byte arrays to prevent them
