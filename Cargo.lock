@@ -1162,8 +1162,11 @@ name = "spin-componentize"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "host",
  "spin-abi-conformance",
  "tokio",
+ "wasi-cap-std-sync",
+ "wasi-common",
  "wasm-encoder 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser 0.102.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmtime",

@@ -1,5 +1,6 @@
 #![allow(unused_variables)] // TODO: remove this when more things are implemented
 
+#[cfg(feature = "reactor")]
 mod spin;
 
 use crate::bindings::{
@@ -299,6 +300,33 @@ impl ImportAlloc {
     }
 }
 
+/// This allocator is only used for the `main` entrypoint.
+///
+/// The implementation here is a bump allocator into `State::long_lived_arena` which
+/// traps when it runs out of data. This means that the total size of
+/// arguments/env/etc coming into a component is bounded by the current 64k
+/// (ish) limit. That's just an implementation limit though which can be lifted
+/// by dynamically calling the main module's allocator as necessary for more data.
+#[cfg(feature = "command")]
+#[no_mangle]
+pub unsafe extern "C" fn cabi_export_realloc(
+    old_ptr: *mut u8,
+    old_size: usize,
+    align: usize,
+    new_size: usize,
+) -> *mut u8 {
+    if !old_ptr.is_null() || old_size != 0 {
+        unreachable!();
+    }
+    let mut ret = null_mut::<u8>();
+    State::with_mut(|state| {
+        ret = state.long_lived_arena.alloc(align, new_size);
+        Ok(())
+    });
+    ret
+}
+
+#[cfg(feature = "reactor")]
 #[no_mangle]
 pub unsafe extern "C" fn cabi_export_realloc(
     old_ptr: *mut u8,
@@ -2453,6 +2481,21 @@ extern "C" {
     fn set_allocation_state(state: AllocationState);
 }
 
+#[cfg(feature = "reactor")]
+unsafe fn realloc(old_ptr: *mut u8, old_len: usize, align: usize, new_len: usize) -> *mut u8 {
+    spin::canonical_abi_realloc(old_ptr, old_len, align, new_len)
+}
+
+#[cfg(feature = "command")]
+unsafe fn realloc(old_ptr: *mut u8, old_len: usize, align: usize, new_len: usize) -> *mut u8 {
+    #[link(wasm_import_module = "__main_module__")]
+    extern "C" {
+        fn cabi_realloc(old_ptr: *mut u8, old_len: usize, align: usize, new_len: usize) -> *mut u8;
+    }
+
+    cabi_realloc(old_ptr, old_len, align, new_len)
+}
+
 impl State {
     fn with(f: impl FnOnce(&State) -> Result<(), Errno>) -> Errno {
         let ptr = State::ptr();
@@ -2499,7 +2542,7 @@ impl State {
         unsafe { set_allocation_state(AllocationState::StateAllocating) }
 
         let ret = unsafe {
-            spin::canonical_abi_realloc(
+            realloc(
                 ptr::null_mut(),
                 0,
                 mem::align_of::<RefCell<State>>(),

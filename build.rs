@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf, process::Command};
+use std::{env, fs, path::PathBuf, process::Command};
 
 fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
@@ -13,6 +13,30 @@ fn main() {
     let status = cmd.status().unwrap();
     assert!(status.success());
     println!("cargo:rerun-if-changed=adapter");
+    fs::rename(
+        out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1.wasm"),
+        out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1_spin.wasm"),
+    )
+    .unwrap();
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build")
+        .current_dir("adapter")
+        .arg("--release")
+        .arg("--no-default-features")
+        .arg("--features")
+        .arg("command")
+        .arg("--target=wasm32-unknown-unknown")
+        .env("CARGO_TARGET_DIR", &out_dir);
+
+    let status = cmd.status().unwrap();
+    assert!(status.success());
+    println!("cargo:rerun-if-changed=adapter");
+    fs::rename(
+        out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1.wasm"),
+        out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1_command.wasm"),
+    )
+    .unwrap();
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
@@ -38,4 +62,15 @@ fn main() {
     let status = cmd.status().unwrap();
     assert!(status.success());
     println!("cargo:rerun-if-changed=go-case");
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build")
+        .current_dir("rust-command")
+        .arg("--release")
+        .arg("--target=wasm32-wasi")
+        .env("CARGO_TARGET_DIR", &out_dir);
+
+    let status = cmd.status().unwrap();
+    assert!(status.success());
+    println!("cargo:rerun-if-changed=rust-command");
 }

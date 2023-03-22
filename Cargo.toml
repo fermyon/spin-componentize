@@ -16,3 +16,6 @@ anyhow = "1.0.69"
 wasmtime = { version = "7.0.0", features = ["component-model"] }
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
+host = { path = "adapter/host" }
+wasi-common = { path = "adapter/wasi-common" }
+wasi-cap-std-sync = { path = "adapter/wasi-common/cap-std-sync" }

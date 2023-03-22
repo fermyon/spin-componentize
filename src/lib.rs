@@ -12,9 +12,14 @@ use {
 
 mod convert;
 
-const ADAPTER: &[u8] = include_bytes!(concat!(
+const SPIN_ADAPTER: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
-    "/wasm32-unknown-unknown/release/wasi_snapshot_preview1.wasm"
+    "/wasm32-unknown-unknown/release/wasi_snapshot_preview1_spin.wasm"
+));
+
+const COMMAND_ADAPTER: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/wasm32-unknown-unknown/release/wasi_snapshot_preview1_command.wasm"
 ));
 
 static ADAPTER_NAME: &str = "wasi_snapshot_preview1";
@@ -45,7 +50,7 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     let (module, exports) = retarget_imports_and_get_exports(ADAPTER_NAME, module)?;
 
-    let (adapter, mut bindgen) = metadata::decode(ADAPTER)?;
+    let (adapter, mut bindgen) = metadata::decode(SPIN_ADAPTER)?;
 
     let allowed = exports
         .into_iter()
@@ -80,6 +85,14 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
         .validate(true)
         .module(&module)?
         .adapter(ADAPTER_NAME, &adapter)?
+        .encode()?)
+}
+
+pub fn componentize_command(module: &[u8]) -> Result<Vec<u8>> {
+    Ok(ComponentEncoder::default()
+        .validate(true)
+        .module(&module)?
+        .adapter(ADAPTER_NAME, COMMAND_ADAPTER)?
         .encode()?)
 }
 
@@ -155,15 +168,26 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
 mod tests {
     use {
         anyhow::{anyhow, Result},
+        host::{
+            self,
+            wasi::{Command, InputStream, OutputStream},
+            WasiCtx,
+        },
         spin_abi_conformance::{
             InvocationStyle, KeyValueReport, MysqlReport, PostgresReport, RedisReport, Report,
             TestConfig, WasiReport,
         },
+        std::io::Cursor,
         tokio::fs,
-        wasmtime::{component::Component, Config, Engine},
+        wasi_cap_std_sync::WasiCtxBuilder,
+        wasi_common::pipe::{ReadPipe, WritePipe},
+        wasmtime::{
+            component::{Component, Linker},
+            Config, Engine, Store,
+        },
     };
 
-    async fn run(module: &[u8]) -> Result<()> {
+    async fn run_spin(module: &[u8]) -> Result<()> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         config.async_support(true);
@@ -232,18 +256,80 @@ mod tests {
         }
     }
 
+    async fn run_command(module: &[u8]) -> Result<()> {
+        let mut config = Config::new();
+        config.wasm_component_model(true);
+        config.async_support(true);
+
+        let engine = Engine::new(&config)?;
+
+        let mut linker = Linker::<WasiCtx>::new(&engine);
+        host::add_to_linker(&mut linker, |context| context)?;
+
+        let mut store = Store::new(&engine, WasiCtxBuilder::new().build());
+
+        let component = Component::new(&engine, crate::componentize_command(module)?)?;
+
+        let (wasi, _) = Command::instantiate_async(&mut store, &component, &linker).await?;
+
+        store
+            .data_mut()
+            .set_stdin(Box::new(ReadPipe::new(Cursor::new(
+                "So rested he by the Tumtum tree",
+            ))));
+
+        let stdout = WritePipe::new_in_memory();
+        store.data_mut().set_stdout(Box::new(stdout.clone()));
+
+        wasi.call_main(
+            &mut store,
+            0 as InputStream,
+            1 as OutputStream,
+            2 as OutputStream,
+            &["Jabberwocky"],
+            &[],
+        )
+        .await?
+        .map_err(|()| anyhow!("command returned with failing exit status"))?;
+
+        drop(store);
+
+        let stdout = stdout.try_into_inner().unwrap().into_inner();
+
+        assert_eq!(
+            b"Jabberwocky\nSo rested he by the Tumtum tree" as &[_],
+            &stdout
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn rust() -> Result<()> {
-        run(&fs::read(concat!(
-            env!("OUT_DIR"),
-            "/wasm32-wasi/release/rust_case.wasm"
-        ))
-        .await?)
+        run_spin(
+            &fs::read(concat!(
+                env!("OUT_DIR"),
+                "/wasm32-wasi/release/rust_case.wasm"
+            ))
+            .await?,
+        )
         .await
     }
 
     #[tokio::test]
     async fn go() -> Result<()> {
-        run(&fs::read(concat!(env!("OUT_DIR"), "/go_case.wasm")).await?).await
+        run_spin(&fs::read(concat!(env!("OUT_DIR"), "/go_case.wasm")).await?).await
+    }
+
+    #[tokio::test]
+    async fn rust_command() -> Result<()> {
+        run_command(
+            &fs::read(concat!(
+                env!("OUT_DIR"),
+                "/wasm32-wasi/release/rust-command.wasm"
+            ))
+            .await?,
+        )
+        .await
     }
 }
