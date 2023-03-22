@@ -38,39 +38,41 @@ fn main() {
     )
     .unwrap();
 
-    let mut cmd = Command::new("cargo");
-    cmd.arg("build")
-        .current_dir("rust-case")
-        .arg("--release")
-        .arg("--target=wasm32-wasi")
-        .env("CARGO_TARGET_DIR", &out_dir);
+    if cfg!(test) {
+        let mut cmd = Command::new("cargo");
+        cmd.arg("build")
+            .current_dir("rust-case")
+            .arg("--release")
+            .arg("--target=wasm32-wasi")
+            .env("CARGO_TARGET_DIR", &out_dir);
 
-    let status = cmd.status().unwrap();
-    assert!(status.success());
-    println!("cargo:rerun-if-changed=rust-case");
+        let status = cmd.status().unwrap();
+        assert!(status.success());
+        println!("cargo:rerun-if-changed=rust-case");
 
-    let mut cmd = Command::new("tinygo");
-    cmd.arg("build")
-        .current_dir("go-case")
-        .arg("-target=wasi")
-        .arg("-gc=leaking")
-        .arg("-no-debug")
-        .arg("-o")
-        .arg(out_dir.join("go_case.wasm"))
-        .arg("main.go");
+        let mut cmd = Command::new("tinygo");
+        cmd.arg("build")
+            .current_dir("go-case")
+            .arg("-target=wasi")
+            .arg("-gc=leaking")
+            .arg("-no-debug")
+            .arg("-o")
+            .arg(out_dir.join("go_case.wasm"))
+            .arg("main.go");
 
-    let status = cmd.status().unwrap();
-    assert!(status.success());
-    println!("cargo:rerun-if-changed=go-case");
+        let status = cmd.status().unwrap();
+        assert!(status.success());
+        println!("cargo:rerun-if-changed=go-case");
 
-    let mut cmd = Command::new("cargo");
-    cmd.arg("build")
-        .current_dir("rust-command")
-        .arg("--release")
-        .arg("--target=wasm32-wasi")
-        .env("CARGO_TARGET_DIR", &out_dir);
+        let mut cmd = Command::new("cargo");
+        cmd.arg("build")
+            .current_dir("rust-command")
+            .arg("--release")
+            .arg("--target=wasm32-wasi")
+            .env("CARGO_TARGET_DIR", &out_dir);
 
-    let status = cmd.status().unwrap();
-    assert!(status.success());
-    println!("cargo:rerun-if-changed=rust-command");
+        let status = cmd.status().unwrap();
+        assert!(status.success());
+        println!("cargo:rerun-if-changed=rust-command");
+    }
 }
