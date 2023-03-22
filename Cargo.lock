@@ -1525,7 +1525,7 @@ dependencies = [
 [[package]]
 name = "wasm-encoder"
 version = "0.25.0"
-source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#51b1ee4e84b18daed37cc925d5be858d96361502"
+source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#afe4ae14a84a1e7b36694af15432ca49108b67ae"
 dependencies = [
  "leb128",
 ]
@@ -1533,7 +1533,7 @@ dependencies = [
 [[package]]
 name = "wasm-metadata"
 version = "0.3.1"
-source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#51b1ee4e84b18daed37cc925d5be858d96361502"
+source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#afe4ae14a84a1e7b36694af15432ca49108b67ae"
 dependencies = [
  "anyhow",
  "indexmap",
@@ -1565,7 +1565,7 @@ dependencies = [
 [[package]]
 name = "wasmparser"
 version = "0.102.0"
-source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#51b1ee4e84b18daed37cc925d5be858d96361502"
+source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#afe4ae14a84a1e7b36694af15432ca49108b67ae"
 dependencies = [
  "indexmap",
  "url",
@@ -1964,7 +1964,7 @@ dependencies = [
 [[package]]
 name = "wit-component"
 version = "0.7.4"
-source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#51b1ee4e84b18daed37cc925d5be858d96361502"
+source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#afe4ae14a84a1e7b36694af15432ca49108b67ae"
 dependencies = [
  "anyhow",
  "bitflags 1.3.2",
@@ -1995,7 +1995,7 @@ dependencies = [
 [[package]]
 name = "wit-parser"
 version = "0.6.4"
-source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#51b1ee4e84b18daed37cc925d5be858d96361502"
+source = "git+https://github.com/dicej/wasm-tools?branch=cabi-post#afe4ae14a84a1e7b36694af15432ca49108b67ae"
 dependencies = [
  "anyhow",
  "id-arena",
