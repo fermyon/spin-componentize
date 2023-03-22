@@ -167,7 +167,7 @@ pub async fn test(
     );
 
     let mut linker = Linker::<Context>::new(engine);
-    host::add_to_linker(&mut linker, |context| &mut context.wasi)?;
+    host::command::add_to_linker(&mut linker, |context| &mut context.wasi)?;
     http::add_to_linker(&mut linker, |context| &mut context.http)?;
     redis::add_to_linker(&mut linker, |context| &mut context.redis)?;
     postgres::add_to_linker(&mut linker, |context| &mut context.postgres)?;

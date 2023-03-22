@@ -170,7 +170,7 @@ mod tests {
         anyhow::{anyhow, Result},
         host::{
             self,
-            wasi::{Command, InputStream, OutputStream},
+            command::wasi::{Command, InputStream, OutputStream},
             WasiCtx,
         },
         spin_abi_conformance::{
@@ -264,7 +264,7 @@ mod tests {
         let engine = Engine::new(&config)?;
 
         let mut linker = Linker::<WasiCtx>::new(&engine);
-        host::add_to_linker(&mut linker, |context| context)?;
+        host::command::add_to_linker(&mut linker, |context| context)?;
 
         let mut store = Store::new(&engine, WasiCtxBuilder::new().build());
 

@@ -1,11 +1,12 @@
 #![allow(unused_variables)]
 
-use crate::wasi;
-use crate::wasi::streams::{InputStream, OutputStream};
-use crate::{HostResult, WasiCtx};
+use crate::command::wasi;
+use crate::command::wasi::streams::{InputStream, OutputStream};
+use crate::WasiCtx;
+use anyhow::anyhow;
 use std::{
     io::{IoSlice, IoSliceMut},
-    ops::{BitAnd, Deref},
+    ops::Deref,
     sync::Mutex,
     time::{Duration, SystemTime},
 };
@@ -15,84 +16,79 @@ use wasi_common::{
     WasiDir, WasiFile,
 };
 
-/// TODO: Remove once wasmtime #5589 lands.
-fn contains<T: BitAnd<Output = T> + Eq + Copy>(flags: T, flag: T) -> bool {
-    (flags & flag) == flag
-}
-
-fn convert(error: wasi_common::Error) -> anyhow::Error {
-    if let Some(errno) = error.downcast_ref() {
+impl From<wasi_common::Error> for wasi::filesystem::Error {
+    fn from(error: wasi_common::Error) -> wasi::filesystem::Error {
         use wasi::filesystem::ErrorCode;
         use wasi_common::Errno::*;
-
-        match errno {
-            Acces => ErrorCode::Access,
-            Again => ErrorCode::WouldBlock,
-            Already => ErrorCode::Already,
-            Badf => ErrorCode::BadDescriptor,
-            Busy => ErrorCode::Busy,
-            Deadlk => ErrorCode::Deadlock,
-            Dquot => ErrorCode::Quota,
-            Exist => ErrorCode::Exist,
-            Fbig => ErrorCode::FileTooLarge,
-            Ilseq => ErrorCode::IllegalByteSequence,
-            Inprogress => ErrorCode::InProgress,
-            Intr => ErrorCode::Interrupted,
-            Inval => ErrorCode::Invalid,
-            Io => ErrorCode::Io,
-            Isdir => ErrorCode::IsDirectory,
-            Loop => ErrorCode::Loop,
-            Mlink => ErrorCode::TooManyLinks,
-            Msgsize => ErrorCode::MessageSize,
-            Nametoolong => ErrorCode::NameTooLong,
-            Nodev => ErrorCode::NoDevice,
-            Noent => ErrorCode::NoEntry,
-            Nolck => ErrorCode::NoLock,
-            Nomem => ErrorCode::InsufficientMemory,
-            Nospc => ErrorCode::InsufficientSpace,
-            Nosys => ErrorCode::Unsupported,
-            Notdir => ErrorCode::NotDirectory,
-            Notempty => ErrorCode::NotEmpty,
-            Notrecoverable => ErrorCode::NotRecoverable,
-            Notsup => ErrorCode::Unsupported,
-            Notty => ErrorCode::NoTty,
-            Nxio => ErrorCode::NoSuchDevice,
-            Overflow => ErrorCode::Overflow,
-            Perm => ErrorCode::NotPermitted,
-            Pipe => ErrorCode::Pipe,
-            Rofs => ErrorCode::ReadOnly,
-            Spipe => ErrorCode::InvalidSeek,
-            Txtbsy => ErrorCode::TextFileBusy,
-            Xdev => ErrorCode::CrossDevice,
-            Success | Notsock | Proto | Protonosupport | Prototype | TooBig | Notconn => {
-                return error.into();
+        if let Some(errno) = error.downcast_ref() {
+            match errno {
+                Acces => ErrorCode::Access.into(),
+                Again => ErrorCode::WouldBlock.into(),
+                Already => ErrorCode::Already.into(),
+                Badf => ErrorCode::BadDescriptor.into(),
+                Busy => ErrorCode::Busy.into(),
+                Deadlk => ErrorCode::Deadlock.into(),
+                Dquot => ErrorCode::Quota.into(),
+                Exist => ErrorCode::Exist.into(),
+                Fbig => ErrorCode::FileTooLarge.into(),
+                Ilseq => ErrorCode::IllegalByteSequence.into(),
+                Inprogress => ErrorCode::InProgress.into(),
+                Intr => ErrorCode::Interrupted.into(),
+                Inval => ErrorCode::Invalid.into(),
+                Io => ErrorCode::Io.into(),
+                Isdir => ErrorCode::IsDirectory.into(),
+                Loop => ErrorCode::Loop.into(),
+                Mlink => ErrorCode::TooManyLinks.into(),
+                Msgsize => ErrorCode::MessageSize.into(),
+                Nametoolong => ErrorCode::NameTooLong.into(),
+                Nodev => ErrorCode::NoDevice.into(),
+                Noent => ErrorCode::NoEntry.into(),
+                Nolck => ErrorCode::NoLock.into(),
+                Nomem => ErrorCode::InsufficientMemory.into(),
+                Nospc => ErrorCode::InsufficientSpace.into(),
+                Nosys => ErrorCode::Unsupported.into(),
+                Notdir => ErrorCode::NotDirectory.into(),
+                Notempty => ErrorCode::NotEmpty.into(),
+                Notrecoverable => ErrorCode::NotRecoverable.into(),
+                Notsup => ErrorCode::Unsupported.into(),
+                Notty => ErrorCode::NoTty.into(),
+                Nxio => ErrorCode::NoSuchDevice.into(),
+                Overflow => ErrorCode::Overflow.into(),
+                Perm => ErrorCode::NotPermitted.into(),
+                Pipe => ErrorCode::Pipe.into(),
+                Rofs => ErrorCode::ReadOnly.into(),
+                Spipe => ErrorCode::InvalidSeek.into(),
+                Txtbsy => ErrorCode::TextFileBusy.into(),
+                Xdev => ErrorCode::CrossDevice.into(),
+                Success | Notsock | Proto | Protonosupport | Prototype | TooBig | Notconn => {
+                    wasi::filesystem::Error::trap(anyhow!(error))
+                }
+                Addrinuse | Addrnotavail | Afnosupport | Badmsg | Canceled | Connaborted
+                | Connrefused | Connreset | Destaddrreq | Fault | Hostunreach | Idrm | Isconn
+                | Mfile | Multihop | Netdown | Netreset | Netunreach | Nfile | Nobufs | Noexec
+                | Nolink | Nomsg | Noprotoopt | Ownerdead | Range | Srch | Stale | Timedout => {
+                    wasi::filesystem::Error::trap(anyhow!("Unexpected errno: {:?}", errno))
+                }
             }
-            Addrinuse | Addrnotavail | Afnosupport | Badmsg | Canceled | Connaborted
-            | Connrefused | Connreset | Destaddrreq | Fault | Hostunreach | Idrm | Isconn
-            | Mfile | Multihop | Netdown | Netreset | Netunreach | Nfile | Nobufs | Noexec
-            | Nolink | Nomsg | Noprotoopt | Ownerdead | Range | Srch | Stale | Timedout => {
-                panic!("Unexpected errno: {:?}", errno);
-            }
+        } else {
+            wasi::filesystem::Error::trap(anyhow!(error))
         }
-        .into()
-    } else {
-        error.into()
     }
 }
 
 impl From<wasi::filesystem::OpenFlags> for wasi_common::file::OFlags {
     fn from(oflags: wasi::filesystem::OpenFlags) -> Self {
         let mut flags = wasi_common::file::OFlags::empty();
-        if contains(oflags, wasi::filesystem::OpenFlags::CREATE) {
+        if oflags.contains(wasi::filesystem::OpenFlags::CREATE) {
             flags |= wasi_common::file::OFlags::CREATE;
         }
-        if contains(oflags, wasi::filesystem::OpenFlags::DIRECTORY) {
+        if oflags.contains(wasi::filesystem::OpenFlags::DIRECTORY) {
             flags |= wasi_common::file::OFlags::DIRECTORY;
         }
-        if contains(oflags, wasi::filesystem::OpenFlags::EXCLUSIVE) {
+        if oflags.contains(wasi::filesystem::OpenFlags::EXCLUSIVE) {
             flags |= wasi_common::file::OFlags::EXCLUSIVE;
         }
-        if contains(oflags, wasi::filesystem::OpenFlags::TRUNCATE) {
+        if oflags.contains(wasi::filesystem::OpenFlags::TRUNCATE) {
             flags |= wasi_common::file::OFlags::TRUNCATE;
         }
         flags
@@ -102,16 +98,16 @@ impl From<wasi::filesystem::OpenFlags> for wasi_common::file::OFlags {
 impl From<FdFlags> for wasi::filesystem::DescriptorFlags {
     fn from(fdflags: FdFlags) -> Self {
         let mut flags = wasi::filesystem::DescriptorFlags::empty();
-        if contains(fdflags, FdFlags::DSYNC) {
+        if fdflags.contains(FdFlags::DSYNC) {
             flags |= wasi::filesystem::DescriptorFlags::DATA_INTEGRITY_SYNC;
         }
-        if contains(fdflags, FdFlags::NONBLOCK) {
+        if fdflags.contains(FdFlags::NONBLOCK) {
             flags |= wasi::filesystem::DescriptorFlags::NON_BLOCKING;
         }
-        if contains(fdflags, FdFlags::RSYNC) {
+        if fdflags.contains(FdFlags::RSYNC) {
             flags |= wasi::filesystem::DescriptorFlags::REQUESTED_WRITE_SYNC;
         }
-        if contains(fdflags, FdFlags::SYNC) {
+        if fdflags.contains(FdFlags::SYNC) {
             flags |= wasi::filesystem::DescriptorFlags::FILE_INTEGRITY_SYNC;
         }
         flags
@@ -121,25 +117,16 @@ impl From<FdFlags> for wasi::filesystem::DescriptorFlags {
 impl From<wasi::filesystem::DescriptorFlags> for FdFlags {
     fn from(flags: wasi::filesystem::DescriptorFlags) -> FdFlags {
         let mut fdflags = FdFlags::empty();
-        if contains(
-            flags,
-            wasi::filesystem::DescriptorFlags::DATA_INTEGRITY_SYNC,
-        ) {
+        if flags.contains(wasi::filesystem::DescriptorFlags::DATA_INTEGRITY_SYNC) {
             fdflags |= FdFlags::DSYNC;
         }
-        if contains(flags, wasi::filesystem::DescriptorFlags::NON_BLOCKING) {
+        if flags.contains(wasi::filesystem::DescriptorFlags::NON_BLOCKING) {
             fdflags |= FdFlags::NONBLOCK;
         }
-        if contains(
-            flags,
-            wasi::filesystem::DescriptorFlags::REQUESTED_WRITE_SYNC,
-        ) {
+        if flags.contains(wasi::filesystem::DescriptorFlags::REQUESTED_WRITE_SYNC) {
             fdflags |= FdFlags::RSYNC;
         }
-        if contains(
-            flags,
-            wasi::filesystem::DescriptorFlags::FILE_INTEGRITY_SYNC,
-        ) {
+        if flags.contains(wasi::filesystem::DescriptorFlags::FILE_INTEGRITY_SYNC) {
             fdflags |= FdFlags::SYNC;
         }
         fdflags
@@ -226,33 +213,21 @@ impl wasi::filesystem::Host for WasiCtx {
         offset: wasi::filesystem::Filesize,
         len: wasi::filesystem::Filesize,
         advice: wasi::filesystem::Advice,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
-        f.advise(offset, len, advice.into())
-            .await
-            .map_err(convert)?;
-        Ok(Ok(()))
+    ) -> Result<(), wasi::filesystem::Error> {
+        let f = self.table_mut().get_file_mut(fd)?;
+        f.advise(offset, len, advice.into()).await?;
+        Ok(())
     }
 
     async fn sync_data(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
         if table.is::<Box<dyn WasiFile>>(fd) {
-            Ok(Ok(table
-                .get_file(fd)
-                .map_err(convert)?
-                .datasync()
-                .await
-                .map_err(convert)?))
+            Ok(table.get_file(fd)?.datasync().await?)
         } else if table.is::<Box<dyn WasiDir>>(fd) {
-            Ok(Ok(table
-                .get_dir(fd)
-                .map_err(convert)?
-                .datasync()
-                .await
-                .map_err(convert)?))
+            Ok(table.get_dir(fd)?.datasync().await?)
         } else {
             Err(wasi::filesystem::ErrorCode::BadDescriptor.into())
         }
@@ -261,24 +236,12 @@ impl wasi::filesystem::Host for WasiCtx {
     async fn get_flags(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<wasi::filesystem::DescriptorFlags, wasi::filesystem::ErrorCode> {
+    ) -> Result<wasi::filesystem::DescriptorFlags, wasi::filesystem::Error> {
         let table = self.table();
         if table.is::<Box<dyn WasiFile>>(fd) {
-            Ok(Ok(table
-                .get_file(fd)
-                .map_err(convert)?
-                .get_fdflags()
-                .await
-                .map_err(convert)?
-                .into()))
+            Ok(table.get_file(fd)?.get_fdflags().await?.into())
         } else if table.is::<Box<dyn WasiDir>>(fd) {
-            Ok(Ok(table
-                .get_dir(fd)
-                .map_err(convert)?
-                .get_fdflags()
-                .await
-                .map_err(convert)?
-                .into()))
+            Ok(table.get_dir(fd)?.get_fdflags().await?.into())
         } else {
             Err(wasi::filesystem::ErrorCode::BadDescriptor.into())
         }
@@ -287,18 +250,12 @@ impl wasi::filesystem::Host for WasiCtx {
     async fn get_type(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<wasi::filesystem::DescriptorType, wasi::filesystem::ErrorCode> {
+    ) -> Result<wasi::filesystem::DescriptorType, wasi::filesystem::Error> {
         let table = self.table();
         if table.is::<Box<dyn WasiFile>>(fd) {
-            Ok(Ok(table
-                .get_file(fd)
-                .map_err(convert)?
-                .get_filetype()
-                .await
-                .map_err(convert)?
-                .into()))
+            Ok(table.get_file(fd)?.get_filetype().await?.into())
         } else if table.is::<Box<dyn WasiDir>>(fd) {
-            Ok(Ok(wasi::filesystem::DescriptorType::Directory))
+            Ok(wasi::filesystem::DescriptorType::Directory)
         } else {
             Err(wasi::filesystem::ErrorCode::BadDescriptor.into())
         }
@@ -308,7 +265,7 @@ impl wasi::filesystem::Host for WasiCtx {
         &mut self,
         fd: wasi::filesystem::Descriptor,
         flags: wasi::filesystem::DescriptorFlags,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         // FIXME
         Err(wasi::filesystem::ErrorCode::Unsupported.into())
     }
@@ -317,10 +274,10 @@ impl wasi::filesystem::Host for WasiCtx {
         &mut self,
         fd: wasi::filesystem::Descriptor,
         size: wasi::filesystem::Filesize,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
-        f.set_filestat_size(size).await.map_err(convert)?;
-        Ok(Ok(()))
+    ) -> Result<(), wasi::filesystem::Error> {
+        let f = self.table_mut().get_file_mut(fd)?;
+        f.set_filestat_size(size).await?;
+        Ok(())
     }
 
     async fn set_times(
@@ -328,25 +285,23 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         atim: wasi::filesystem::NewTimestamp,
         mtim: wasi::filesystem::NewTimestamp,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let atim = system_time_spec_from_timestamp(atim);
         let mtim = system_time_spec_from_timestamp(mtim);
 
         let table = self.table_mut();
         if table.is::<Box<dyn WasiFile>>(fd) {
-            Ok(Ok(table
+            Ok(table
                 .get_file_mut(fd)
                 .expect("checked entry is a file")
                 .set_times(atim, mtim)
-                .await
-                .map_err(convert)?))
+                .await?)
         } else if table.is::<Box<dyn WasiDir>>(fd) {
-            Ok(Ok(table
+            Ok(table
                 .get_dir(fd)
                 .expect("checked entry is a dir")
                 .set_times(".", atim, mtim, false)
-                .await
-                .map_err(convert)?))
+                .await?)
         } else {
             Err(wasi::filesystem::ErrorCode::BadDescriptor.into())
         }
@@ -357,19 +312,22 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         len: wasi::filesystem::Filesize,
         offset: wasi::filesystem::Filesize,
-    ) -> HostResult<(Vec<u8>, bool), wasi::filesystem::ErrorCode> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
+    ) -> Result<(Vec<u8>, bool), wasi::filesystem::Error> {
+        let f = self.table_mut().get_file_mut(fd)?;
 
         let mut buffer = vec![0; len.try_into().unwrap_or(usize::MAX)];
 
         let (bytes_read, end) = f
             .read_vectored_at(&mut [IoSliceMut::new(&mut buffer)], offset)
-            .await
-            .map_err(convert)?;
+            .await?;
 
-        buffer.truncate(bytes_read.try_into().unwrap());
+        buffer.truncate(
+            bytes_read
+                .try_into()
+                .expect("bytes read into memory as u64 fits in usize"),
+        );
 
-        Ok(Ok((buffer, end)))
+        Ok((buffer, end))
     }
 
     async fn write(
@@ -377,65 +335,52 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         buf: Vec<u8>,
         offset: wasi::filesystem::Filesize,
-    ) -> HostResult<wasi::filesystem::Filesize, wasi::filesystem::ErrorCode> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
+    ) -> Result<wasi::filesystem::Filesize, wasi::filesystem::Error> {
+        let f = self.table_mut().get_file_mut(fd)?;
 
-        let bytes_written = f
-            .write_vectored_at(&[IoSlice::new(&buf)], offset)
-            .await
-            .map_err(convert)?;
+        let bytes_written = f.write_vectored_at(&[IoSlice::new(&buf)], offset).await?;
 
-        Ok(Ok(
-            wasi::filesystem::Filesize::try_from(bytes_written).unwrap()
-        ))
+        Ok(wasi::filesystem::Filesize::try_from(bytes_written).expect("usize fits in Filesize"))
     }
 
     async fn read_directory(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<wasi::filesystem::DirectoryEntryStream, wasi::filesystem::ErrorCode> {
+    ) -> Result<wasi::filesystem::DirectoryEntryStream, wasi::filesystem::Error> {
         let iterator = self
             .table()
-            .get_dir(fd)
-            .map_err(convert)?
+            .get_dir(fd)?
             .readdir(ReaddirCursor::from(0))
-            .await
-            .map_err(convert)?;
+            .await?;
 
-        self.table_mut()
-            .push(Box::new(Mutex::new(iterator)))
-            .map(Ok)
-            .map_err(convert)
+        Ok(self.table_mut().push(Box::new(Mutex::new(iterator)))?)
     }
 
     async fn read_directory_entry(
         &mut self,
         stream: wasi::filesystem::DirectoryEntryStream,
-    ) -> HostResult<Option<wasi::filesystem::DirectoryEntry>, wasi::filesystem::ErrorCode> {
+    ) -> Result<Option<wasi::filesystem::DirectoryEntry>, wasi::filesystem::Error> {
         let entity = self
             .table()
-            .get::<Mutex<ReaddirIterator>>(stream)
-            .map_err(convert)?
+            .get::<Mutex<ReaddirIterator>>(stream)?
             .lock()
-            .unwrap()
+            .expect("readdir iterator is lockable")
             .next()
-            .transpose()
-            .map_err(convert)?;
+            .transpose()?;
 
-        Ok(Ok(entity.map(|e| wasi::filesystem::DirectoryEntry {
+        Ok(entity.map(|e| wasi::filesystem::DirectoryEntry {
             inode: Some(e.inode),
             type_: e.filetype.into(),
             name: e.name,
-        })))
+        }))
     }
 
     async fn drop_directory_entry_stream(
         &mut self,
         stream: wasi::filesystem::DirectoryEntryStream,
     ) -> anyhow::Result<()> {
-        self.table_mut()
-            .delete::<Mutex<ReaddirIterator>>(stream)
-            .map_err(convert)?;
+        // Trap if deletion is not possible:
+        self.table_mut().delete::<Mutex<ReaddirIterator>>(stream)?;
 
         Ok(())
     }
@@ -443,22 +388,12 @@ impl wasi::filesystem::Host for WasiCtx {
     async fn sync(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
         if table.is::<Box<dyn WasiFile>>(fd) {
-            Ok(Ok(table
-                .get_file(fd)
-                .map_err(convert)?
-                .sync()
-                .await
-                .map_err(convert)?))
+            Ok(table.get_file(fd)?.sync().await?)
         } else if table.is::<Box<dyn WasiDir>>(fd) {
-            Ok(Ok(table
-                .get_dir(fd)
-                .map_err(convert)?
-                .sync()
-                .await
-                .map_err(convert)?))
+            Ok(table.get_dir(fd)?.sync().await?)
         } else {
             Err(wasi::filesystem::ErrorCode::BadDescriptor.into())
         }
@@ -468,37 +403,20 @@ impl wasi::filesystem::Host for WasiCtx {
         &mut self,
         fd: wasi::filesystem::Descriptor,
         path: String,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        Ok(Ok(table
-            .get_dir(fd)
-            .map_err(convert)?
-            .create_dir(&path)
-            .await
-            .map_err(convert)?))
+        Ok(table.get_dir(fd)?.create_dir(&path).await?)
     }
 
     async fn stat(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<wasi::filesystem::DescriptorStat, wasi::filesystem::ErrorCode> {
+    ) -> Result<wasi::filesystem::DescriptorStat, wasi::filesystem::Error> {
         let table = self.table();
         if table.is::<Box<dyn WasiFile>>(fd) {
-            Ok(Ok(table
-                .get_file(fd)
-                .map_err(convert)?
-                .get_filestat()
-                .await
-                .map_err(convert)?
-                .into()))
+            Ok(table.get_file(fd)?.get_filestat().await?.into())
         } else if table.is::<Box<dyn WasiDir>>(fd) {
-            Ok(Ok(table
-                .get_dir(fd)
-                .map_err(convert)?
-                .get_filestat()
-                .await
-                .map_err(convert)?
-                .into()))
+            Ok(table.get_dir(fd)?.get_filestat().await?.into())
         } else {
             Err(wasi::filesystem::ErrorCode::BadDescriptor.into())
         }
@@ -509,18 +427,16 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         at_flags: wasi::filesystem::PathFlags,
         path: String,
-    ) -> HostResult<wasi::filesystem::DescriptorStat, wasi::filesystem::ErrorCode> {
+    ) -> Result<wasi::filesystem::DescriptorStat, wasi::filesystem::Error> {
         let table = self.table();
-        Ok(Ok(table
-            .get_dir(fd)
-            .map_err(convert)?
+        Ok(table
+            .get_dir(fd)?
             .get_path_filestat(
                 &path,
-                contains(at_flags, wasi::filesystem::PathFlags::SYMLINK_FOLLOW),
+                at_flags.contains(wasi::filesystem::PathFlags::SYMLINK_FOLLOW),
             )
-            .await
-            .map(wasi::filesystem::DescriptorStat::from)
-            .map_err(convert)?))
+            .await?
+            .into())
     }
 
     async fn set_times_at(
@@ -530,19 +446,17 @@ impl wasi::filesystem::Host for WasiCtx {
         path: String,
         atim: wasi::filesystem::NewTimestamp,
         mtim: wasi::filesystem::NewTimestamp,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        Ok(Ok(table
-            .get_dir(fd)
-            .map_err(convert)?
+        Ok(table
+            .get_dir(fd)?
             .set_times(
                 &path,
                 system_time_spec_from_timestamp(atim),
                 system_time_spec_from_timestamp(mtim),
-                contains(at_flags, wasi::filesystem::PathFlags::SYMLINK_FOLLOW),
+                at_flags.contains(wasi::filesystem::PathFlags::SYMLINK_FOLLOW),
             )
-            .await
-            .map_err(convert)?))
+            .await?)
     }
 
     async fn link_at(
@@ -553,18 +467,17 @@ impl wasi::filesystem::Host for WasiCtx {
         old_path: String,
         new_descriptor: wasi::filesystem::Descriptor,
         new_path: String,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        let old_dir = table.get_dir(fd).map_err(convert)?;
-        let new_dir = table.get_dir(new_descriptor).map_err(convert)?;
-        if contains(old_at_flags, wasi::filesystem::PathFlags::SYMLINK_FOLLOW) {
-            return Ok(Err(wasi::filesystem::ErrorCode::Invalid));
+        let old_dir = table.get_dir(fd)?;
+        let new_dir = table.get_dir(new_descriptor)?;
+        if old_at_flags.contains(wasi::filesystem::PathFlags::SYMLINK_FOLLOW) {
+            return Err(wasi::filesystem::ErrorCode::Invalid.into());
         }
         old_dir
             .hard_link(&old_path, new_dir.deref(), &new_path)
-            .await
-            .map_err(convert)?;
-        Ok(Ok(()))
+            .await?;
+        Ok(())
     }
 
     async fn open_at(
@@ -576,39 +489,35 @@ impl wasi::filesystem::Host for WasiCtx {
         flags: wasi::filesystem::DescriptorFlags,
         // TODO: How should this be used?
         _mode: wasi::filesystem::Modes,
-    ) -> HostResult<wasi::filesystem::Descriptor, wasi::filesystem::ErrorCode> {
+    ) -> Result<wasi::filesystem::Descriptor, wasi::filesystem::Error> {
         let table = self.table_mut();
-        let dir = table.get_dir(fd).map_err(convert)?;
+        let dir = table.get_dir(fd)?;
 
-        let symlink_follow = contains(at_flags, wasi::filesystem::PathFlags::SYMLINK_FOLLOW);
+        let symlink_follow = at_flags.contains(wasi::filesystem::PathFlags::SYMLINK_FOLLOW);
 
-        if contains(oflags, wasi::filesystem::OpenFlags::DIRECTORY) {
-            if contains(oflags, wasi::filesystem::OpenFlags::CREATE)
-                || contains(oflags, wasi::filesystem::OpenFlags::EXCLUSIVE)
-                || contains(oflags, wasi::filesystem::OpenFlags::TRUNCATE)
+        if oflags.contains(wasi::filesystem::OpenFlags::DIRECTORY) {
+            if oflags.contains(wasi::filesystem::OpenFlags::CREATE)
+                || oflags.contains(wasi::filesystem::OpenFlags::EXCLUSIVE)
+                || oflags.contains(wasi::filesystem::OpenFlags::TRUNCATE)
             {
                 return Err(wasi::filesystem::ErrorCode::Invalid.into());
             }
-            let child_dir = dir
-                .open_dir(symlink_follow, &old_path)
-                .await
-                .map_err(convert)?;
+            let child_dir = dir.open_dir(symlink_follow, &old_path).await?;
             drop(dir);
-            Ok(Ok(table.push(Box::new(child_dir)).map_err(convert)?))
+            Ok(table.push(Box::new(child_dir))?)
         } else {
             let file = dir
                 .open_file(
                     symlink_follow,
                     &old_path,
                     oflags.into(),
-                    contains(flags, wasi::filesystem::DescriptorFlags::READ),
-                    contains(flags, wasi::filesystem::DescriptorFlags::WRITE),
+                    flags.contains(wasi::filesystem::DescriptorFlags::READ),
+                    flags.contains(wasi::filesystem::DescriptorFlags::WRITE),
                     flags.into(),
                 )
-                .await
-                .map_err(convert)?;
+                .await?;
             drop(dir);
-            Ok(Ok(table.push(Box::new(file)).map_err(convert)?))
+            Ok(table.push(Box::new(file))?)
         }
     }
 
@@ -617,6 +526,7 @@ impl wasi::filesystem::Host for WasiCtx {
         if !(table.delete::<Box<dyn WasiFile>>(fd).is_ok()
             || table.delete::<Box<dyn WasiDir>>(fd).is_ok())
         {
+            // this will trap:
             anyhow::bail!("{fd} is neither a file nor a directory");
         }
         Ok(())
@@ -626,28 +536,23 @@ impl wasi::filesystem::Host for WasiCtx {
         &mut self,
         fd: wasi::filesystem::Descriptor,
         path: String,
-    ) -> HostResult<String, wasi::filesystem::ErrorCode> {
+    ) -> Result<String, wasi::filesystem::Error> {
         let table = self.table();
-        let dir = table.get_dir(fd).map_err(convert)?;
-        let link = dir.read_link(&path).await.map_err(convert)?;
+        let dir = table.get_dir(fd)?;
+        let link = dir.read_link(&path).await?;
         Ok(link
             .into_os_string()
             .into_string()
-            .map_err(|_| wasi::filesystem::ErrorCode::IllegalByteSequence))
+            .map_err(|_| wasi::filesystem::ErrorCode::IllegalByteSequence)?)
     }
 
     async fn remove_directory_at(
         &mut self,
         fd: wasi::filesystem::Descriptor,
         path: String,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        Ok(Ok(table
-            .get_dir(fd)
-            .map_err(convert)?
-            .remove_dir(&path)
-            .await
-            .map_err(convert)?))
+        Ok(table.get_dir(fd)?.remove_dir(&path).await?)
     }
 
     async fn rename_at(
@@ -656,15 +561,14 @@ impl wasi::filesystem::Host for WasiCtx {
         old_path: String,
         new_fd: wasi::filesystem::Descriptor,
         new_path: String,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        let old_dir = table.get_dir(fd).map_err(convert)?;
-        let new_dir = table.get_dir(new_fd).map_err(convert)?;
+        let old_dir = table.get_dir(fd)?;
+        let new_dir = table.get_dir(new_fd)?;
         old_dir
             .rename(&old_path, new_dir.deref(), &new_path)
-            .await
-            .map_err(convert)?;
-        Ok(Ok(()))
+            .await?;
+        Ok(())
     }
 
     async fn symlink_at(
@@ -672,28 +576,18 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         old_path: String,
         new_path: String,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        Ok(Ok(table
-            .get_dir(fd)
-            .map_err(convert)?
-            .symlink(&old_path, &new_path)
-            .await
-            .map_err(convert)?))
+        Ok(table.get_dir(fd)?.symlink(&old_path, &new_path).await?)
     }
 
     async fn unlink_file_at(
         &mut self,
         fd: wasi::filesystem::Descriptor,
         path: String,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         let table = self.table();
-        Ok(Ok(table
-            .get_dir(fd)
-            .map_err(convert)?
-            .unlink_file(&path)
-            .await
-            .map_err(convert)?))
+        Ok(table.get_dir(fd)?.unlink_file(&path).await?)
     }
 
     async fn change_file_permissions_at(
@@ -702,7 +596,7 @@ impl wasi::filesystem::Host for WasiCtx {
         at_flags: wasi::filesystem::PathFlags,
         path: String,
         mode: wasi::filesystem::Modes,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
@@ -712,42 +606,42 @@ impl wasi::filesystem::Host for WasiCtx {
         at_flags: wasi::filesystem::PathFlags,
         path: String,
         mode: wasi::filesystem::Modes,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
     async fn lock_shared(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
     async fn lock_exclusive(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
     async fn try_lock_shared(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
     async fn try_lock_exclusive(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
     async fn unlock(
         &mut self,
         fd: wasi::filesystem::Descriptor,
-    ) -> HostResult<(), wasi::filesystem::ErrorCode> {
+    ) -> Result<(), wasi::filesystem::Error> {
         todo!()
     }
 
@@ -756,7 +650,8 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         offset: wasi::filesystem::Filesize,
     ) -> anyhow::Result<InputStream> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
+        // Trap if fd lookup fails:
+        let f = self.table_mut().get_file_mut(fd)?;
 
         // Duplicate the file descriptor so that we get an indepenent lifetime.
         let clone = f.dup();
@@ -767,8 +662,8 @@ impl wasi::filesystem::Host for WasiCtx {
         // Box it up.
         let boxed: Box<dyn wasi_common::InputStream> = Box::new(reader);
 
-        // Insert the stream view into the table.
-        let index = self.table_mut().push(Box::new(boxed)).map_err(convert)?;
+        // Insert the stream view into the table. Trap if the table is full.
+        let index = self.table_mut().push(Box::new(boxed))?;
 
         Ok(index)
     }
@@ -778,7 +673,8 @@ impl wasi::filesystem::Host for WasiCtx {
         fd: wasi::filesystem::Descriptor,
         offset: wasi::filesystem::Filesize,
     ) -> anyhow::Result<OutputStream> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
+        // Trap if fd lookup fails:
+        let f = self.table_mut().get_file_mut(fd)?;
 
         // Duplicate the file descriptor so that we get an indepenent lifetime.
         let clone = f.dup();
@@ -789,8 +685,8 @@ impl wasi::filesystem::Host for WasiCtx {
         // Box it up.
         let boxed: Box<dyn wasi_common::OutputStream> = Box::new(writer);
 
-        // Insert the stream view into the table.
-        let index = self.table_mut().push(Box::new(boxed)).map_err(convert)?;
+        // Insert the stream view into the table. Trap if the table is full.
+        let index = self.table_mut().push(Box::new(boxed))?;
 
         Ok(index)
     }
@@ -799,7 +695,8 @@ impl wasi::filesystem::Host for WasiCtx {
         &mut self,
         fd: wasi::filesystem::Descriptor,
     ) -> anyhow::Result<OutputStream> {
-        let f = self.table_mut().get_file_mut(fd).map_err(convert)?;
+        // Trap if fd lookup fails:
+        let f = self.table_mut().get_file_mut(fd)?;
 
         // Duplicate the file descriptor so that we get an indepenent lifetime.
         let clone = f.dup();
@@ -810,8 +707,8 @@ impl wasi::filesystem::Host for WasiCtx {
         // Box it up.
         let boxed: Box<dyn wasi_common::OutputStream> = Box::new(appender);
 
-        // Insert the stream view into the table.
-        let index = self.table_mut().push(Box::new(boxed)).map_err(convert)?;
+        // Insert the stream view into the table. Trap if the table is full.
+        let index = self.table_mut().push(Box::new(boxed))?;
 
         Ok(index)
     }
