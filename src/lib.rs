@@ -3,8 +3,7 @@
 use {
     anyhow::{anyhow, Result},
     convert::{IntoEntityType, IntoExportKind},
-    std::borrow::Cow,
-    std::collections::HashSet,
+    std::{borrow::Cow, collections::HashSet},
     wasm_encoder::{CustomSection, ExportSection, ImportSection, Module, RawSection},
     wasmparser::{Encoding, Parser, Payload},
     wit_component::{metadata, ComponentEncoder},
