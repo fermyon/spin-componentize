@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
 
     let engine = &Engine::new(&Config::new())?;
 
-    let module = &if let Some(input) = &options.input {
+    let component = &if let Some(input) = &options.input {
         Component::from_file(engine, input)
     } else {
         Component::new(engine, {
@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         spin_abi_conformance::TestConfig::default()
     };
 
-    let report = &spin_abi_conformance::test(module, engine, config).await?;
+    let report = &spin_abi_conformance::test(component, engine, config).await?;
 
     let writer = if let Some(output) = &options.output {
         Box::new(File::create(output)?) as Box<dyn Write>
