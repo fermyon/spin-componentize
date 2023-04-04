@@ -5,8 +5,6 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap())
         .current_dir("adapter")
         .arg("--release")
         .arg("--target=wasm32-unknown-unknown")
@@ -23,8 +21,6 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap())
         .current_dir("adapter")
         .arg("--release")
         .arg("--no-default-features")
@@ -44,8 +40,6 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap())
         .current_dir("rust-case")
         .arg("--release")
         .arg("--target=wasm32-wasi")
@@ -57,9 +51,6 @@ fn main() {
 
     let mut cmd = Command::new("tinygo");
     cmd.arg("build")
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap())
-        .env("HOME", env::var_os("HOME").unwrap())
         .current_dir("go-case")
         .arg("-target=wasi")
         .arg("-gc=leaking")
@@ -74,8 +65,6 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap())
         .current_dir("rust-command")
         .arg("--release")
         .arg("--target=wasm32-wasi")
