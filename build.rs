@@ -59,6 +59,7 @@ fn main() {
     cmd.arg("build")
         .env_clear()
         .env("PATH", env::var_os("PATH").unwrap())
+        .env("HOME", env::var_os("HOME").unwrap())
         .current_dir("go-case")
         .arg("-target=wasi")
         .arg("-gc=leaking")

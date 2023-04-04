@@ -167,11 +167,7 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
 mod tests {
     use {
         anyhow::{anyhow, Result},
-        host::{
-            self,
-            command::wasi::{Command, InputStream, OutputStream},
-            WasiCtx,
-        },
+        host::{self, command::wasi::Command, WasiCtx},
         spin_abi_conformance::{
             InvocationStyle, KeyValueReport, MysqlReport, PostgresReport, RedisReport, Report,
             TestConfig, WasiReport,
@@ -279,17 +275,11 @@ mod tests {
 
         let stdout = WritePipe::new_in_memory();
         store.data_mut().set_stdout(Box::new(stdout.clone()));
+        store.data_mut().set_args(&["Jabberwocky"]);
 
-        wasi.call_main(
-            &mut store,
-            0 as InputStream,
-            1 as OutputStream,
-            2 as OutputStream,
-            &["Jabberwocky"],
-            &[],
-        )
-        .await?
-        .map_err(|()| anyhow!("command returned with failing exit status"))?;
+        wasi.call_run(&mut store)
+            .await?
+            .map_err(|()| anyhow!("command returned with failing exit status"))?;
 
         drop(store);
 
