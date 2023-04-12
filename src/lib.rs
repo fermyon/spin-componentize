@@ -277,7 +277,7 @@ mod tests {
         store.data_mut().set_stdout(Box::new(stdout.clone()));
         store.data_mut().set_args(&["Jabberwocky"]);
 
-        wasi.call_run(&mut store)
+        wasi.call_main(&mut store)
             .await?
             .map_err(|()| anyhow!("command returned with failing exit status"))?;
 

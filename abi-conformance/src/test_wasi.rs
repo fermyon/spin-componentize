@@ -127,17 +127,13 @@ pub(crate) async fn test(
                 fn now(&self) -> Duration {
                     Duration::from_millis(TIME)
                 }
-
-                fn dup(&self) -> Box<dyn WasiWallClock + Send + Sync> {
-                    Box::new(Self)
-                }
             }
 
             let stdout = WritePipe::new_in_memory();
             {
                 let context = store.data_mut();
                 context.wasi.set_stdout(Box::new(stdout.clone()));
-                context.wasi.clocks.instance_wall_clock = Box::new(MyClock);
+                context.wasi.clocks.wall = Box::new(MyClock);
             }
 
             crate::run_command(store, pre, &["wasi-epoch"], move |_| {
