@@ -15,6 +15,10 @@ const SPIN_ADAPTER: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/wasm32-unknown-unknown/release/wasi_snapshot_preview1_spin.wasm"
 ));
+const PREVIEW1_ADAPTER: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/wasm32-unknown-unknown/release/wasi_snapshot_preview1_upstream.wasm"
+));
 
 const COMMAND_ADAPTER: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
@@ -31,19 +35,57 @@ static EXPORT_INTERFACES: &[(&str, &str)] = &[
 ];
 
 pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>> {
+    // Spin can handle three types of spin components: wasm components, core modules
+    // built with wit-bindgen 0.2, and core modules built with wit-bindgen 0.5
+    enum SpinEncoding {
+        Component,
+        Module02,
+        Module05,
+    }
+    let mut encoding = None;
     for payload in Parser::new(0).parse_all(module_or_component) {
         match payload? {
-            Payload::Version { encoding, .. } => {
-                return match encoding {
-                    Encoding::Component => Ok(Cow::Borrowed(module_or_component)),
-                    Encoding::Module => componentize(module_or_component).map(Cow::Owned),
+            Payload::Version { encoding: e, .. } if e == Encoding::Component => {
+                encoding = Some(SpinEncoding::Component);
+                break;
+            }
+            Payload::Version { encoding: e, .. } if e == Encoding::Module => {
+                encoding = Some(SpinEncoding::Module02)
+            }
+            Payload::ExportSection(s) => {
+                for e in s {
+                    if let Some(suffix) = e?.name.strip_prefix("spin-sdk-version-") {
+                        let mut parts = suffix.split('-');
+                        let major = parts.next();
+                        let minor = parts.next();
+                        let patch = parts.next().and_then(|s| s.strip_prefix("pre"));
+                        let test = |str: &str, min: usize| str.parse::<usize>().ok() >= Some(min);
+                        match (major, minor, patch) {
+                            (Some(maj), _, _) if test(maj, 2) => {}
+                            (Some(maj), Some(min), _) if test(maj, 1) && test(min, 3) => {}
+                            (Some(maj), Some(min), Some(patch))
+                                if test(maj, 1) && test(min, 2) && test(patch, 0) => {}
+                            _ => break,
+                        }
+                        encoding = Some(SpinEncoding::Module05);
+                        break;
+                    }
                 }
             }
             _ => (),
         }
     }
-
-    Err(anyhow!("unable to determine Wasm encoding"))
+    match encoding {
+        Some(SpinEncoding::Component) => Ok(Cow::Borrowed(module_or_component)),
+        Some(SpinEncoding::Module02) => componentize(module_or_component).map(Cow::Owned),
+        Some(SpinEncoding::Module05) => ComponentEncoder::default()
+            .validate(true)
+            .module(&module_or_component)?
+            .adapter("wasi_snapshot_preview1", PREVIEW1_ADAPTER)?
+            .encode()
+            .map(Cow::Owned),
+        None => Err(anyhow!("unable to determine Wasm encoding")),
+    }
 }
 
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {

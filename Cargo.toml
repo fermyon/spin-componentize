@@ -8,8 +8,7 @@ edition = "2021"
 anyhow = "1.0.69"
 wasmparser = "0.102.0"
 wasm-encoder = "0.25.0"
-# TODO: switch to release once https://github.com/bytecodealliance/wasm-tools/pull/965 has been released
-wit-component = { git = "https://github.com/bytecodealliance/wasm-tools", rev = "1e0052974277b3cce6c3703386e4e90291da2b24" }
+wit-component = { git = "https://github.com/bytecodealliance/wasm-tools", rev = "016838279808be4d257f1b58b9942420f0a09855" }
 
 [dev-dependencies]
 anyhow = "1.0.69"
