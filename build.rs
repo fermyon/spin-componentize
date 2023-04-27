@@ -21,6 +21,21 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
+        .current_dir("preview2-prototyping")
+        .arg("--release")
+        .arg("--target=wasm32-unknown-unknown")
+        .env("CARGO_TARGET_DIR", &out_dir);
+    let status = cmd.status().unwrap();
+    assert!(status.success());
+    println!("cargo:rerun-if-changed=preview2-prototyping");
+    fs::rename(
+        out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1.wasm"),
+        out_dir.join("wasm32-unknown-unknown/release/wasi_snapshot_preview1_upstream.wasm"),
+    )
+    .unwrap();
+
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build")
         .current_dir("adapter")
         .arg("--release")
         .arg("--no-default-features")
