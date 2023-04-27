@@ -23,8 +23,8 @@ struct IntoRefType(wasmparser::RefType);
 impl Into<RefType> for IntoRefType {
     fn into(self) -> RefType {
         RefType {
-            nullable: self.0.nullable,
-            heap_type: IntoHeapType(self.0.heap_type).into(),
+            nullable: self.0.is_nullable(),
+            heap_type: IntoHeapType(self.0.heap_type()).into(),
         }
     }
 }
