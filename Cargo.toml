@@ -1,17 +1,15 @@
 [package]
 name = "spin-componentize"
 version = "0.1.0"
-
 edition = "2021"
 
 [dependencies]
 anyhow = "1.0.69"
-wasmparser = "0.102.0"
-wasm-encoder = "0.25.0"
-wit-component = { git = "https://github.com/bytecodealliance/wasm-tools", rev = "016838279808be4d257f1b58b9942420f0a09855" }
+wasmparser = "0.104.0"
+wasm-encoder = "0.26.0"
+wit-component = "0.8.2"
 
 [dev-dependencies]
-anyhow = "1.0.69"
 wasmtime = { version = "7.0.0", features = ["component-model"] }
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
