@@ -61,6 +61,7 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
 
 /// In order to properly componentize modules, we need to know which
 /// version of wit-bindgen was used
+#[derive(Debug)]
 enum WitBindgenVersion {
     V0_5,
     V0_2,
@@ -72,8 +73,11 @@ impl WitBindgenVersion {
         let (_, bindgen) = metadata::decode(module)?;
         if let Some(producers) = bindgen.producers {
             if let Some(processors) = producers.get("processed-by") {
-                match processors.get("wit-bindgen-rust").map(|s| s.as_str()) {
-                    Some("0.5.0") => return Ok(Self::V0_5),
+                let bindgen_version = processors.iter().find_map(|(key, value)| {
+                    key.starts_with("wit-bindgen").then(|| value.as_str())
+                });
+                match bindgen_version {
+                    Some(v) if v.starts_with("0.5.") => return Ok(Self::V0_5),
                     Some(other) => return Ok(Self::Other(other.to_owned())),
                     None => {}
                 }
