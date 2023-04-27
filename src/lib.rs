@@ -1,7 +1,7 @@
 #![deny(warnings)]
 
 use {
-    anyhow::{anyhow, Result},
+    anyhow::{anyhow, Context, Result},
     convert::{IntoEntityType, IntoExportKind},
     std::{borrow::Cow, collections::HashSet},
     wasm_encoder::{CustomSection, ExportSection, ImportSection, Module, RawSection},
@@ -35,60 +35,66 @@ static EXPORT_INTERFACES: &[(&str, &str)] = &[
 ];
 
 pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>> {
-    // Spin can handle three types of spin components: wasm components, core modules
-    // built with wit-bindgen 0.2, and core modules built with wit-bindgen 0.5
-    enum SpinEncoding {
-        Component,
-        Module02,
-        Module05,
-    }
-    let mut encoding = None;
     for payload in Parser::new(0).parse_all(module_or_component) {
-        match payload? {
-            Payload::Version { encoding: e, .. } if e == Encoding::Component => {
-                encoding = Some(SpinEncoding::Component);
-                break;
-            }
-            Payload::Version { encoding: e, .. } if e == Encoding::Module => {
-                encoding = Some(SpinEncoding::Module02)
-            }
-            Payload::ExportSection(s) => {
-                for e in s {
-                    if let Some(suffix) = e?.name.strip_prefix("spin-sdk-version-") {
-                        let mut parts = suffix.split('-');
-                        let major = parts.next();
-                        let minor = parts.next();
-                        let patch = parts.next().and_then(|s| s.strip_prefix("pre"));
-                        let test = |str: &str, min: usize| str.parse::<usize>().ok() >= Some(min);
-                        match (major, minor, patch) {
-                            (Some(maj), _, _) if test(maj, 2) => {}
-                            (Some(maj), Some(min), _) if test(maj, 1) && test(min, 3) => {}
-                            (Some(maj), Some(min), Some(patch))
-                                if test(maj, 1) && test(min, 2) && test(patch, 0) => {}
-                            _ => break,
-                        }
-                        encoding = Some(SpinEncoding::Module05);
-                        break;
-                    }
-                }
+        match payload.context("unable to parse binary")? {
+            Payload::Version { encoding, .. } => {
+                return match encoding {
+                    Encoding::Component => Ok(Cow::Borrowed(module_or_component)),
+                    Encoding::Module => componentize(module_or_component).map(Cow::Owned),
+                };
             }
             _ => (),
         }
     }
-    match encoding {
-        Some(SpinEncoding::Component) => Ok(Cow::Borrowed(module_or_component)),
-        Some(SpinEncoding::Module02) => componentize(module_or_component).map(Cow::Owned),
-        Some(SpinEncoding::Module05) => ComponentEncoder::default()
-            .validate(true)
-            .module(&module_or_component)?
-            .adapter("wasi_snapshot_preview1", PREVIEW1_ADAPTER)?
-            .encode()
-            .map(Cow::Owned),
-        None => Err(anyhow!("unable to determine Wasm encoding")),
-    }
+    Err(anyhow!("unable to determine wasm binary encoding"))
 }
 
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
+    match WitBindgenVersion::from_module(module)? {
+        WitBindgenVersion::V0_2 => componentize_bindgen0_2(module),
+        WitBindgenVersion::V0_5 => componentize_bindgen0_5(module),
+        WitBindgenVersion::Other(other) => Err(anyhow::anyhow!(
+            "cannot adapt modules created with wit-bindgen version {other}"
+        )),
+    }
+}
+
+/// In order to properly componentize modules, we need to know which
+/// version of wit-bindgen was used
+enum WitBindgenVersion {
+    V0_5,
+    V0_2,
+    Other(String),
+}
+
+impl WitBindgenVersion {
+    fn from_module(module: &[u8]) -> Result<Self> {
+        let (_, bindgen) = metadata::decode(module)?;
+        if let Some(producers) = bindgen.producers {
+            if let Some(processors) = producers.get("processed-by") {
+                match processors.get("wit-bindgen-rust").map(|s| s.as_str()) {
+                    Some("0.5.0") => return Ok(Self::V0_5),
+                    Some(other) => return Ok(Self::Other(other.to_owned())),
+                    None => {}
+                }
+            }
+        }
+
+        Ok(Self::V0_2)
+    }
+}
+
+/// Modules produced with wit-bindgen 0.5 only need wasi preview 1 to preview 2 adapter
+pub fn componentize_bindgen0_5(module: &[u8]) -> Result<Vec<u8>> {
+    ComponentEncoder::default()
+        .validate(true)
+        .module(&module)?
+        .adapter("wasi_snapshot_preview1", PREVIEW1_ADAPTER)?
+        .encode()
+}
+
+/// Modules produced with wit-bindgen 0.2 need more extensive adaption
+pub fn componentize_bindgen0_2(module: &[u8]) -> Result<Vec<u8>> {
     let (module, exports) = retarget_imports_and_get_exports(ADAPTER_NAME, module)?;
 
     let (adapter, mut bindgen) = metadata::decode(SPIN_ADAPTER)?;
