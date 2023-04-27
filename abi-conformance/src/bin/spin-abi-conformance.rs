@@ -27,7 +27,8 @@ pub struct Options {
 async fn main() -> Result<()> {
     let options = &Options::parse();
 
-    let engine = &Engine::new(&Config::new())?;
+    let mut config = Config::new();
+    let engine = &Engine::new(config.wasm_component_model(true).async_support(true))?;
 
     let module = &if let Some(input) = &options.input {
         Component::from_file(engine, input)
