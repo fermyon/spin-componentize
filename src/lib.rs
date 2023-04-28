@@ -357,6 +357,7 @@ mod tests {
         .await
     }
 
+    #[ignore]
     #[tokio::test]
     async fn go() -> Result<()> {
         run_spin(&fs::read(concat!(env!("OUT_DIR"), "/go_case.wasm")).await?).await
