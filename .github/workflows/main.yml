@@ -1,0 +1,31 @@
+name: Build and Test
+on:
+  push:
+    branches:
+      - main
+  pull_request: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the source code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Installs needed targets
+        run: |
+          rustup target add wasm32-unknown-unknown wasm32-wasi
+
+      - uses: acifani/setup-tinygo@v1
+        with:
+          tinygo-version: '0.27.0'
+
+      - name: Formatting check
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test --all
+
