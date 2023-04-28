@@ -210,7 +210,10 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
         }
     }
 
-    result.section(&CustomSection { name, data });
+    result.section(&CustomSection {
+        name: Cow::Borrowed(name),
+        data: Cow::Borrowed(data),
+    });
 
     Ok(result.finish())
 }
