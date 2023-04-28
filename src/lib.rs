@@ -40,7 +40,11 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
             Payload::Version { encoding, .. } => {
                 return match encoding {
                     Encoding::Component => Ok(Cow::Borrowed(module_or_component)),
-                    Encoding::Module => componentize(module_or_component).map(Cow::Owned),
+                    Encoding::Module => {
+                        let foo = componentize(module_or_component).map(Cow::Owned)?;
+                        std::fs::write("component.wasm", &foo).unwrap();
+                        Ok(foo)
+                    }
                 };
             }
             _ => (),
@@ -52,7 +56,7 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     match WitBindgenVersion::from_module(module)? {
         WitBindgenVersion::V0_2 => componentize_bindgen0_2(module),
-        WitBindgenVersion::V0_5 => componentize_bindgen0_5(module),
+        WitBindgenVersion::V0_6 => componentize_bindgen0_6(module),
         WitBindgenVersion::Other(other) => Err(anyhow::anyhow!(
             "cannot adapt modules created with wit-bindgen version {other}"
         )),
@@ -63,7 +67,7 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
 /// version of wit-bindgen was used
 #[derive(Debug)]
 enum WitBindgenVersion {
-    V0_5,
+    V0_6,
     V0_2,
     Other(String),
 }
@@ -77,7 +81,7 @@ impl WitBindgenVersion {
                     key.starts_with("wit-bindgen").then(|| value.as_str())
                 });
                 match bindgen_version {
-                    Some(v) if v.starts_with("0.5.") => return Ok(Self::V0_5),
+                    Some(v) if v.starts_with("0.6.") => return Ok(Self::V0_6),
                     Some(other) => return Ok(Self::Other(other.to_owned())),
                     None => {}
                 }
@@ -88,8 +92,8 @@ impl WitBindgenVersion {
     }
 }
 
-/// Modules produced with wit-bindgen 0.5 only need wasi preview 1 to preview 2 adapter
-pub fn componentize_bindgen0_5(module: &[u8]) -> Result<Vec<u8>> {
+/// Modules produced with wit-bindgen 0.6 only need wasi preview 1 to preview 2 adapter
+pub fn componentize_bindgen0_6(module: &[u8]) -> Result<Vec<u8>> {
     ComponentEncoder::default()
         .validate(true)
         .module(&module)?

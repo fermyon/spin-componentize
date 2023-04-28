@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.69"
 async-trait = "0.1.66"
-wasmtime = { version = "7.0.0", features = ["component-model"] }
+wasmtime = { version = "8.0.1", features = ["component-model"] }
 tokio = { version = "1", features = ["macros", "rt", "fs", "rt-multi-thread"] }
 host = { path = "../adapter/host" }
 wasi-common = { path = "../adapter/wasi-common" }
