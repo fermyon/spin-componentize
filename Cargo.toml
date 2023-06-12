@@ -10,7 +10,7 @@ wasm-encoder = "0.26.0"
 wit-component = "0.8.2"
 
 [dev-dependencies]
-wasmtime = { version = "8.0.1", features = ["component-model"] }
+wasmtime = { version = "9.0.3", features = ["component-model"] }
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
 host = { path = "adapter/host" }

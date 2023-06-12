@@ -1,5 +1,5 @@
 use crate::{
-    redis_types::{Error, PayloadParam},
+    redis_types::{Error, Payload},
     Context,
 };
 use anyhow::anyhow;
@@ -28,9 +28,12 @@ pub(crate) async fn test(
             .exports(&mut *store)
             .instance("inbound-redis")
             .ok_or_else(|| anyhow!("no inbound-redis instance found"))?
-            .typed_func::<(PayloadParam,), (Result<(), Error>,)>("handle-message")?;
+            .typed_func::<(Payload,), (Result<(), Error>,)>("handle-message")?;
 
-        match func.call_async(store, (b"Hello, SpinRedis!",)).await? {
+        match func
+            .call_async(store, (b"Hello, SpinRedis!".to_vec(),))
+            .await?
+        {
             (Ok(()) | Err(Error::Success),) => Ok(()),
             (Err(e),) => Err(e.into()),
         }

@@ -1,5 +1,5 @@
 use crate::{
-    http_types::{Method, RequestParam, Response},
+    http_types::{Method, Request, Response},
     Context,
 };
 use anyhow::{anyhow, ensure};
@@ -16,17 +16,17 @@ pub(crate) async fn test(
             .exports(&mut *store)
             .instance("inbound-http")
             .ok_or_else(|| anyhow!("no inbound-http instance found"))?
-            .typed_func::<(RequestParam,), (Response,)>("handle-request")?;
+            .typed_func::<(Request,), (Response,)>("handle-request")?;
 
         let (response,) = func
             .call_async(
                 store,
-                (RequestParam {
+                (Request {
                     method: Method::Post,
-                    uri: "/foo",
-                    headers: &[("foo", "bar")],
-                    params: &[],
-                    body: Some(b"Hello, SpinHttp!"),
+                    uri: "/foo".into(),
+                    headers: vec![("foo".into(), "bar".into())],
+                    params: vec![],
+                    body: Some(b"Hello, SpinHttp!".to_vec()),
                 },),
             )
             .await?;
