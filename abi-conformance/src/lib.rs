@@ -22,7 +22,7 @@
 #![deny(warnings)]
 
 use anyhow::{anyhow, bail, Context as _, Result};
-use http_types::{Method, RequestParam, Response};
+use http_types::{Method, Request, Response};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, str};
 use test_config::Config;
@@ -223,17 +223,17 @@ async fn run_command(
                     .exports(&mut *store)
                     .instance("inbound-http")
                     .ok_or_else(|| anyhow!("no inbound-http instance found"))?
-                    .typed_func::<(RequestParam,), (Response,)>("handle-request")?;
+                    .typed_func::<(Request,), (Response,)>("handle-request")?;
 
                 let result = func
                     .call_async(
                         &mut *store,
-                        (RequestParam {
+                        (Request {
                             method: Method::Post,
-                            uri: "/",
-                            headers: &[],
-                            params: &[],
-                            body: Some(arguments.join("%20").as_bytes()),
+                            uri: "/".into(),
+                            headers: vec![],
+                            params: vec![],
+                            body: Some(arguments.join("%20").into_bytes()),
                         },),
                     )
                     .await;

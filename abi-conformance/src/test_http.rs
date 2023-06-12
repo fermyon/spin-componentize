@@ -1,6 +1,6 @@
 use crate::{
     http,
-    http_types::{HttpError, RequestResult, Response},
+    http_types::{HttpError, Request, Response},
     Context,
 };
 use anyhow::{ensure, Result};
@@ -15,7 +15,7 @@ pub(crate) struct Http {
 
 #[async_trait]
 impl http::Host for Http {
-    async fn send_request(&mut self, req: RequestResult) -> Result<Result<Response, HttpError>> {
+    async fn send_request(&mut self, req: Request) -> Result<Result<Response, HttpError>> {
         Ok(self
             .map
             .remove(&req.uri)
