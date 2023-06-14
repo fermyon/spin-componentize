@@ -102,9 +102,6 @@ pub fn componentize_new_bindgen(module: &[u8]) -> Result<Vec<u8>> {
 /// Modules produced with wit-bindgen 0.2 need more extensive adaption
 pub fn componentize_old_bindgen(module: &[u8]) -> Result<Vec<u8>> {
     let (module, exports) = retarget_imports_and_get_exports(ADAPTER_NAME, module)?;
-
-    let (adapter, mut bindgen) = metadata::decode(SPIN_ADAPTER)?;
-
     let allowed = exports
         .into_iter()
         .filter_map(|export| {
@@ -114,6 +111,8 @@ pub fn componentize_old_bindgen(module: &[u8]) -> Result<Vec<u8>> {
         })
         .collect::<HashSet<&str>>();
 
+    let (adapter, mut bindgen) = wit_component::metadata::decode(SPIN_ADAPTER)?;
+
     let world = bindgen
         .resolve
         .worlds
@@ -121,9 +120,16 @@ pub fn componentize_old_bindgen(module: &[u8]) -> Result<Vec<u8>> {
         .find_map(|(k, v)| (v.name == WORLD_NAME).then_some(k))
         .ok_or_else(|| anyhow!("world not found: {WORLD_NAME}"))?;
 
-    bindgen.resolve.worlds[world]
-        .exports
-        .retain(|k, _| allowed.contains(&k.as_str()));
+    bindgen.resolve.worlds[world].exports.retain(|k, _| {
+        let k = match &k {
+            wit_parser::WorldKey::Name(n) => n,
+            wit_parser::WorldKey::Interface(i) => match &bindgen.resolve.interfaces[*i].name {
+                Some(n) => n,
+                None => return true,
+            },
+        };
+        allowed.contains(k.as_str())
+    });
 
     let body = metadata::encode(
         &bindgen.resolve,

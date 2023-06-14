@@ -5,14 +5,16 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.69"
-wasmparser = "0.104.0"
-wasm-encoder = "0.26.0"
-wit-component = "0.8.2"
+wasmparser = "0.107.0"
+wasm-encoder = "0.29.0"
+wit-component = "0.11.0"
+old-wit-component = { package = "wit-component", version = "0.8.2" }
+wit-parser = "0.8.0"
 
 [dev-dependencies]
-wasmtime = { version = "9.0.3", features = ["component-model"] }
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-10.0.0", features = ["component-model"] }
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
-host = { path = "adapter/host" }
-wasi-common = { path = "adapter/wasi-common" }
-wasi-cap-std-sync = { path = "adapter/wasi-common/cap-std-sync" }
+# host = { path = "adapter/host" }
+# wasi-common = { path = "adapter/wasi-common" }
+# wasi-cap-std-sync = { path = "adapter/wasi-common/cap-std-sync" }
