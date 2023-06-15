@@ -3,19 +3,7 @@ use crate::{
     Context,
 };
 use anyhow::anyhow;
-use std::{error, fmt};
 use wasmtime::{component::InstancePre, Store};
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Success => f.write_str("redis success"),
-            Self::Error => f.write_str("redis error"),
-        }
-    }
-}
-
-impl error::Error for Error {}
 
 pub(crate) async fn test(
     store: &mut Store<Context>,

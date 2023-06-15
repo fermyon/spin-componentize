@@ -111,7 +111,7 @@ pub fn componentize_old_bindgen(module: &[u8]) -> Result<Vec<u8>> {
         })
         .collect::<HashSet<&str>>();
 
-    let (adapter, mut bindgen) = wit_component::metadata::decode(SPIN_ADAPTER)?;
+    let (adapter, mut bindgen) = metadata::decode(SPIN_ADAPTER)?;
 
     let world = bindgen
         .resolve
@@ -228,21 +228,22 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
 
 #[cfg(test)]
 mod tests {
+    use wasmtime_wasi::preview2::{wasi::command::Command, Table, WasiView};
+
     use {
         anyhow::{anyhow, Result},
-        host::{self, command::wasi::Command, WasiCtx},
         spin_abi_conformance::{
             InvocationStyle, KeyValueReport, MysqlReport, PostgresReport, RedisReport, Report,
             TestConfig, WasiReport,
         },
         std::io::Cursor,
         tokio::fs,
-        wasi_cap_std_sync::WasiCtxBuilder,
-        wasi_common::pipe::{ReadPipe, WritePipe},
         wasmtime::{
             component::{Component, Linker},
             Config, Engine, Store,
         },
+        wasmtime_wasi::preview2::pipe::{ReadPipe, WritePipe},
+        wasmtime_wasi::preview2::{WasiCtx, WasiCtxBuilder},
     };
 
     async fn run_spin(module: &[u8]) -> Result<()> {
@@ -321,26 +322,52 @@ mod tests {
 
         let engine = Engine::new(&config)?;
 
-        let mut linker = Linker::<WasiCtx>::new(&engine);
-        host::command::add_to_linker(&mut linker, |context| context)?;
+        struct Wasi {
+            ctx: WasiCtx,
+            table: Table,
+        }
+        impl WasiView for Wasi {
+            fn table(&self) -> &Table {
+                &self.table
+            }
 
-        let mut store = Store::new(&engine, WasiCtxBuilder::new().build());
+            fn table_mut(&mut self) -> &mut Table {
+                &mut self.table
+            }
+
+            fn ctx(&self) -> &WasiCtx {
+                &self.ctx
+            }
+
+            fn ctx_mut(&mut self) -> &mut WasiCtx {
+                &mut self.ctx
+            }
+        }
+
+        let mut linker = Linker::<Wasi>::new(&engine);
+        wasmtime_wasi::preview2::wasi::command::add_to_linker(&mut linker)?;
+        let ctx = WasiCtxBuilder::new();
+        let stdout = WritePipe::new_in_memory();
+        let ctx = ctx
+            .set_stdin(ReadPipe::new(Cursor::new(
+                "So rested he by the Tumtum tree",
+            )))
+            .set_stdout(stdout.clone())
+            .set_args(&["Jabberwocky"]);
+
+        let mut table = Table::new();
+        let wasi = Wasi {
+            ctx: ctx.build(&mut table).unwrap(),
+            table,
+        };
+
+        let mut store = Store::new(&engine, wasi);
 
         let component = Component::new(&engine, crate::componentize_command(module)?)?;
 
         let (wasi, _) = Command::instantiate_async(&mut store, &component, &linker).await?;
 
-        store
-            .data_mut()
-            .set_stdin(Box::new(ReadPipe::new(Cursor::new(
-                "So rested he by the Tumtum tree",
-            ))));
-
-        let stdout = WritePipe::new_in_memory();
-        store.data_mut().set_stdout(Box::new(stdout.clone()));
-        store.data_mut().set_args(&["Jabberwocky"]);
-
-        wasi.call_main(&mut store)
+        wasi.call_run(&mut store)
             .await?
             .map_err(|()| anyhow!("command returned with failing exit status"))?;
 

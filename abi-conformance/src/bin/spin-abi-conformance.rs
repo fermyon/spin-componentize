@@ -46,7 +46,9 @@ async fn main() -> Result<()> {
         spin_abi_conformance::TestConfig::default()
     };
 
+    println!("Here");
     let report = &spin_abi_conformance::test(module, engine, config).await?;
+    println!("tHere");
 
     let writer = if let Some(output) = &options.output {
         Box::new(File::create(output)?) as Box<dyn Write>

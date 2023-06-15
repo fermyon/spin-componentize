@@ -1,6 +1,3 @@
-[submodule "adapter"]
-	path = adapter
-	url = https://github.com/dicej/preview1.wasm
 [submodule "wasmtime"]
 	path = wasmtime
 	url = git@github.com:rylev/wasmtime.git

@@ -7,6 +7,8 @@ edition = "2021"
 anyhow = "1.0.69"
 async-trait = "0.1.66"
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-10.0.0", features = ["component-model"] }
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-10.0.0", features = ["tokio"] }
+cap-std = "1.0.15"
 tokio = { version = "1", features = ["macros", "rt", "fs", "rt-multi-thread"] }
 # host = { path = "../adapter/host" }
 # wasi-common = { path = "../adapter/wasi-common" }
@@ -18,5 +20,4 @@ rand_core = "0.6.3"
 serde = { version = "1.0", features = [ "derive" ] }
 tempfile = "3.3.0"
 toml = "0.5.9"
-cap-std = "1.0.5"
 serde_json = "1.0"

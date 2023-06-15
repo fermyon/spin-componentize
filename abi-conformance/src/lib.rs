@@ -22,7 +22,6 @@
 #![deny(warnings)]
 
 use anyhow::{anyhow, bail, Context as _, Result};
-use http_types::{Method, Request, Response};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, str};
 use test_config::Config;
@@ -31,11 +30,13 @@ use test_key_value::KeyValue;
 use test_mysql::Mysql;
 use test_postgres::Postgres;
 use test_redis::Redis;
-use wasi_cap_std_sync::WasiCtxBuilder;
-use wasi_common::{pipe::WritePipe, WasiCtx};
+use wasi::preview::http_types::{Method, Request, Response};
 use wasmtime::{
     component::{Component, InstancePre, Linker},
     Engine, Store,
+};
+use wasmtime_wasi::preview2::{
+    pipe::WritePipe, stream::TableStreamExt, Table, WasiCtx, WasiCtxBuilder, WasiView,
 };
 
 pub use test_key_value::KeyValueReport;
@@ -55,10 +56,11 @@ mod test_redis;
 mod test_wasi;
 
 wasmtime::component::bindgen!({
-    path: "../adapter/wit",
-    world: "reactor",
+    path: "../wasmtime/crates/wasi/wit",
+    world: "wasi:preview/reactor",
     async: true
 });
+pub use wasi::preview::*;
 
 /// The invocation style to use when the host asks the guest to call a host-implemented function
 #[derive(Copy, Clone, Default, Deserialize)]
@@ -152,11 +154,15 @@ pub async fn test(
     engine: &Engine,
     test_config: TestConfig,
 ) -> Result<Report> {
+    let mut table = Table::new();
     let mut store = Store::new(
         engine,
         Context {
             test_config,
-            wasi: WasiCtxBuilder::new().build(),
+            wasi: WasiCtxBuilder::new()
+                .build(&mut table)
+                .expect("building wasi context failed"),
+            table,
             http: Http::default(),
             redis: Redis::default(),
             postgres: Postgres::default(),
@@ -167,7 +173,7 @@ pub async fn test(
     );
 
     let mut linker = Linker::<Context>::new(engine);
-    host::command::add_to_linker(&mut linker, |context| &mut context.wasi)?;
+    wasmtime_wasi::preview2::wasi::command::add_to_linker(&mut linker)?;
     http::add_to_linker(&mut linker, |context| &mut context.http)?;
     redis::add_to_linker(&mut linker, |context| &mut context.redis)?;
     postgres::add_to_linker(&mut linker, |context| &mut context.postgres)?;
@@ -193,12 +199,31 @@ pub async fn test(
 struct Context {
     test_config: TestConfig,
     wasi: WasiCtx,
+    table: Table,
     http: Http,
     redis: Redis,
     postgres: Postgres,
     mysql: Mysql,
     key_value: KeyValue,
     config: Config,
+}
+
+impl WasiView for Context {
+    fn table(&self) -> &Table {
+        &self.table
+    }
+
+    fn table_mut(&mut self) -> &mut Table {
+        &mut self.table
+    }
+
+    fn ctx(&self) -> &WasiCtx {
+        &self.wasi
+    }
+
+    fn ctx_mut(&mut self) -> &mut WasiCtx {
+        &mut self.wasi
+    }
 }
 
 async fn run(fun: impl Future<Output = Result<()>>) -> Result<(), String> {
@@ -213,7 +238,7 @@ async fn run_command(
 ) -> Result<(), String> {
     run(async {
         let stderr = WritePipe::new_in_memory();
-        store.data_mut().wasi.set_stderr(Box::new(stderr.clone()));
+        set_stderr(store, &stderr);
 
         let instance = pre.instantiate_async(&mut *store).await?;
 
@@ -238,11 +263,15 @@ async fn run_command(
                     )
                     .await;
 
-                // Reset `Context::wasi` so the next test has a clean slate and also to ensure there are no more
+                // Reset `Context::wasi` and `Context::table` so the next test has a clean slate and also to ensure there are no more
                 // references to the `stderr` pipe, ensuring `try_into_inner` succeeds below.  This is also needed
                 // in case the caller attached its own pipes for e.g. stdin and/or stdout and expects exclusive
                 // ownership once we return.
-                store.data_mut().wasi = WasiCtxBuilder::new().build();
+                let mut table = Table::new();
+                store.data_mut().wasi = WasiCtxBuilder::new()
+                    .build(&mut table)
+                    .expect("failed to reset wasi context");
+                *store.data_mut().table_mut() = table;
 
                 let (response,) = result.with_context(|| {
                     String::from_utf8_lossy(&stderr.try_into_inner().unwrap().into_inner())
@@ -266,4 +295,18 @@ async fn run_command(
         fun(store)
     })
     .await
+}
+
+fn set_stderr(store: &mut Store<Context>, stderr: &WritePipe<std::io::Cursor<Vec<u8>>>) {
+    let stderr_key = store.data().wasi.stderr;
+    store
+        .data_mut()
+        .table_mut()
+        .delete::<WritePipe<std::io::Cursor<Vec<u8>>>>(stderr_key)
+        .unwrap();
+    store.data_mut().wasi.stderr = store
+        .data_mut()
+        .table_mut()
+        .push_output_stream(Box::new(stderr.clone()))
+        .unwrap();
 }
