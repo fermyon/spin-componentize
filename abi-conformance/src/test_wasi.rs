@@ -20,7 +20,7 @@ use wasmtime::{component::InstancePre, Store};
 use wasmtime_wasi::preview2::{
     pipe::{ReadPipe, WritePipe},
     stream::TableStreamExt,
-    WasiView, WasiWallClock,
+    InputStream, OutputStream, WasiCtxBuilder, WasiView, WasiWallClock,
 };
 
 /// Report of which WASI functions a module successfully used, if any
@@ -290,25 +290,28 @@ pub(crate) async fn test(
 }
 
 fn add_dir(store: &mut Store<Context>, path: &Path) -> Result<()> {
-    let dir_key = store
-        .data_mut()
-        .table
-        .push(Box::new(Dir::from_std_file(File::open(path)?)))?;
+    let dir = Dir::from_std_file(File::open(path)?);
+    let perms = wasmtime_wasi::preview2::DirPerms::all();
+    let file_perms = wasmtime_wasi::preview2::FilePerms::all();
+    let new = WasiCtxBuilder::new()
+        .push_preopened_dir(dir, perms, file_perms, String::from("/"))
+        .build(store.data_mut().table_mut())
+        .unwrap();
     store
         .data_mut()
         .wasi
         .preopens
-        .push((dir_key, path.to_string_lossy().into_owned()));
+        .extend(new.preopens.into_iter());
 
     Ok(())
 }
 
 fn set_stdout(store: &mut Store<Context>, stdout: &WritePipe<std::io::Cursor<Vec<u8>>>) {
-    let stdout_key = store.data().wasi.stdout;
+    let key = store.data().wasi.stdout;
     store
         .data_mut()
         .table_mut()
-        .delete::<WritePipe<std::io::Cursor<Vec<u8>>>>(stdout_key)
+        .delete::<Box<dyn OutputStream>>(key)
         .unwrap();
     store.data_mut().wasi.stdout = store
         .data_mut()
@@ -318,13 +321,13 @@ fn set_stdout(store: &mut Store<Context>, stdout: &WritePipe<std::io::Cursor<Vec
 }
 
 fn set_stdin(store: &mut Store<Context>, stdin: &ReadPipe<std::io::Cursor<String>>) {
-    let stdin_key = store.data().wasi.stdin;
+    let key = store.data().wasi.stdin;
     store
         .data_mut()
         .table_mut()
-        .delete::<ReadPipe<std::io::Cursor<String>>>(stdin_key)
+        .delete::<Box<dyn InputStream>>(key)
         .unwrap();
-    store.data_mut().wasi.stdout = store
+    store.data_mut().wasi.stdin = store
         .data_mut()
         .table_mut()
         .push_input_stream(Box::new(stdin.clone()))

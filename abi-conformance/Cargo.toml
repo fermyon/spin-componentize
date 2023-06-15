@@ -10,9 +10,6 @@ wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", branch = "rel
 wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-10.0.0", features = ["tokio"] }
 cap-std = "1.0.15"
 tokio = { version = "1", features = ["macros", "rt", "fs", "rt-multi-thread"] }
-# host = { path = "../adapter/host" }
-# wasi-common = { path = "../adapter/wasi-common" }
-# wasi-cap-std-sync = { path = "../adapter/wasi-common/cap-std-sync" }
 clap = { version = "3.1.15", features = ["derive", "env"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"

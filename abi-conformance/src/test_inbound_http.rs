@@ -14,8 +14,8 @@ pub(crate) async fn test(
 
         let func = instance
             .exports(&mut *store)
-            .instance("inbound-http")
-            .ok_or_else(|| anyhow!("no inbound-http instance found"))?
+            .instance("fermyon:spin/inbound-http")
+            .ok_or_else(|| anyhow!("no fermyon:spin/inbound-http instance found"))?
             .typed_func::<(Request,), (Response,)>("handle-request")?;
 
         let (response,) = func

@@ -22,6 +22,7 @@
 #![deny(warnings)]
 
 use anyhow::{anyhow, bail, Context as _, Result};
+use fermyon::spin::http_types::{Method, Request, Response};
 use serde::{Deserialize, Serialize};
 use std::{future::Future, str};
 use test_config::Config;
@@ -30,13 +31,12 @@ use test_key_value::KeyValue;
 use test_mysql::Mysql;
 use test_postgres::Postgres;
 use test_redis::Redis;
-use wasi::preview::http_types::{Method, Request, Response};
 use wasmtime::{
     component::{Component, InstancePre, Linker},
     Engine, Store,
 };
 use wasmtime_wasi::preview2::{
-    pipe::WritePipe, stream::TableStreamExt, Table, WasiCtx, WasiCtxBuilder, WasiView,
+    pipe::WritePipe, stream::TableStreamExt, OutputStream, Table, WasiCtx, WasiCtxBuilder, WasiView,
 };
 
 pub use test_key_value::KeyValueReport;
@@ -57,10 +57,10 @@ mod test_wasi;
 
 wasmtime::component::bindgen!({
     path: "../wasmtime/crates/wasi/wit",
-    world: "wasi:preview/reactor",
+    world: "fermyon:spin/reactor",
     async: true
 });
-pub use wasi::preview::*;
+pub use fermyon::spin::*;
 
 /// The invocation style to use when the host asks the guest to call a host-implemented function
 #[derive(Copy, Clone, Default, Deserialize)]
@@ -246,8 +246,8 @@ async fn run_command(
             InvocationStyle::InboundHttp => {
                 let func = instance
                     .exports(&mut *store)
-                    .instance("inbound-http")
-                    .ok_or_else(|| anyhow!("no inbound-http instance found"))?
+                    .instance("fermyon:spin/inbound-http")
+                    .ok_or_else(|| anyhow!("no fermyon:spin/inbound-http instance found"))?
                     .typed_func::<(Request,), (Response,)>("handle-request")?;
 
                 let result = func
@@ -302,7 +302,7 @@ fn set_stderr(store: &mut Store<Context>, stderr: &WritePipe<std::io::Cursor<Vec
     store
         .data_mut()
         .table_mut()
-        .delete::<WritePipe<std::io::Cursor<Vec<u8>>>>(stderr_key)
+        .delete::<Box<dyn OutputStream>>(stderr_key)
         .unwrap();
     store.data_mut().wasi.stderr = store
         .data_mut()

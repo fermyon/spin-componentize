@@ -14,7 +14,7 @@ pub(crate) async fn test(
 
         let func = instance
             .exports(&mut *store)
-            .instance("inbound-redis")
+            .instance("fermyon:spin/inbound-redis")
             .ok_or_else(|| anyhow!("no inbound-redis instance found"))?
             .typed_func::<(Payload,), (Result<(), Error>,)>("handle-message")?;
 
