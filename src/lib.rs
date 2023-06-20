@@ -399,6 +399,18 @@ mod tests {
         .await
     }
 
+    #[tokio::test]
+    async fn rust_07() -> Result<()> {
+        run_spin(
+            &fs::read(concat!(
+                env!("OUT_DIR"),
+                "/wasm32-wasi/release/rust_case_07.wasm"
+            ))
+            .await?,
+        )
+        .await
+    }
+
     #[ignore]
     #[tokio::test]
     async fn go() -> Result<()> {

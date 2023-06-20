@@ -1,0 +1,13 @@
+[package]
+name = "rust-case-07"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = [ "cdylib" ]
+
+[dependencies]
+anyhow = "1.0.44"
+clap = { version = "3.2.20", features = ["derive", "env"] }
+getrandom = "0.2.7"
+wit-bindgen = "0.7"
