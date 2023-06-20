@@ -38,6 +38,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbe3c979c178231552ecba20214a8272df4e09f232a87aef4320cf06539aded"
 
 [[package]]
+name = "case-helper"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "getrandom",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -253,8 +262,7 @@ name = "rust-case-07"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
- "getrandom",
+ "case-helper",
  "wit-bindgen",
 ]
 

@@ -7,7 +7,6 @@ edition = "2021"
 crate-type = [ "cdylib" ]
 
 [dependencies]
+case-helper = { path = "../case-helper" }
 anyhow = "1.0.44"
-clap = { version = "3.2.20", features = ["derive", "env"] }
-getrandom = "0.2.7"
 wit-bindgen = "0.7"
