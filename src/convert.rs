@@ -14,14 +14,14 @@ impl Into<HeapType> for IntoHeapType {
             wasmparser::HeapType::Func => HeapType::Func,
             wasmparser::HeapType::Extern => HeapType::Extern,
             wasmparser::HeapType::Indexed(index) => HeapType::Indexed(index.into()),
-            wasmparser::HeapType::Any => todo!(),
-            wasmparser::HeapType::None => todo!(),
-            wasmparser::HeapType::NoExtern => todo!(),
-            wasmparser::HeapType::NoFunc => todo!(),
-            wasmparser::HeapType::Eq => todo!(),
-            wasmparser::HeapType::Struct => todo!(),
-            wasmparser::HeapType::Array => todo!(),
-            wasmparser::HeapType::I31 => todo!(),
+            wasmparser::HeapType::Any => HeapType::Any,
+            wasmparser::HeapType::None => HeapType::None,
+            wasmparser::HeapType::NoExtern => HeapType::NoExtern,
+            wasmparser::HeapType::NoFunc => HeapType::NoFunc,
+            wasmparser::HeapType::Eq => HeapType::Eq,
+            wasmparser::HeapType::Struct => HeapType::Struct,
+            wasmparser::HeapType::Array => HeapType::Array,
+            wasmparser::HeapType::I31 => HeapType::I31,
         }
     }
 }
