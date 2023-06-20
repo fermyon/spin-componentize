@@ -42,7 +42,7 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .current_dir("rust-case")
+        .current_dir("tests/rust-case-0.2")
         .arg("--release")
         .arg("--target=wasm32-wasi")
         .env("CARGO_TARGET_DIR", &out_dir);
@@ -53,7 +53,7 @@ fn main() {
 
     let mut cmd = Command::new("tinygo");
     cmd.arg("build")
-        .current_dir("go-case")
+        .current_dir("tests/go-case")
         .arg("-target=wasi")
         .arg("-gc=leaking")
         .arg("-no-debug")
@@ -67,7 +67,7 @@ fn main() {
 
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .current_dir("rust-command")
+        .current_dir("tests/rust-command")
         .arg("--release")
         .arg("--target=wasm32-wasi")
         .env("CARGO_TARGET_DIR", &out_dir);
