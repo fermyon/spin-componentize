@@ -40,20 +40,13 @@ fn main() {
     )
     .unwrap();
 
-    let mut cmd = Command::new("cargo");
-    cmd.arg("build")
-        .current_dir("rust-case")
-        .arg("--release")
-        .arg("--target=wasm32-wasi")
-        .env("CARGO_TARGET_DIR", &out_dir);
-
-    let status = cmd.status().unwrap();
-    assert!(status.success());
-    println!("cargo:rerun-if-changed=rust-case");
+    build_rust_test_case(&out_dir, "rust-case-0.2");
+    build_rust_test_case(&out_dir, "rust-case-0.7");
+    build_rust_test_case(&out_dir, "rust-command");
 
     let mut cmd = Command::new("tinygo");
     cmd.arg("build")
-        .current_dir("go-case")
+        .current_dir("tests/go-case")
         .arg("-target=wasi")
         .arg("-gc=leaking")
         .arg("-no-debug")
@@ -64,15 +57,17 @@ fn main() {
     // If just skip this if TinyGo is not installed
     _ = cmd.status();
     println!("cargo:rerun-if-changed=go-case");
+}
 
+fn build_rust_test_case(out_dir: &PathBuf, name: &str) {
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-        .current_dir("rust-command")
+        .current_dir(&format!("tests/{name}"))
         .arg("--release")
         .arg("--target=wasm32-wasi")
-        .env("CARGO_TARGET_DIR", &out_dir);
+        .env("CARGO_TARGET_DIR", out_dir);
 
     let status = cmd.status().unwrap();
     assert!(status.success());
-    println!("cargo:rerun-if-changed=rust-command");
+    println!("cargo:rerun-if-changed=tests/{name}");
 }

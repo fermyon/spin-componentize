@@ -52,7 +52,9 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     match WitBindgenVersion::from_module(module)? {
         WitBindgenVersion::V0_2 => componentize_old_bindgen(module),
-        WitBindgenVersion::V0_5 | WitBindgenVersion::V0_6 => componentize_new_bindgen(module),
+        WitBindgenVersion::V0_5 | WitBindgenVersion::V0_6 | WitBindgenVersion::V0_7 => {
+            componentize_new_bindgen(module)
+        }
         WitBindgenVersion::Other(other) => Err(anyhow::anyhow!(
             "cannot adapt modules created with wit-bindgen version {other}"
         )),
@@ -63,6 +65,7 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
 /// version of wit-bindgen was used
 #[derive(Debug)]
 enum WitBindgenVersion {
+    V0_7,
     V0_6,
     V0_5,
     V0_2,
@@ -78,6 +81,7 @@ impl WitBindgenVersion {
                     key.starts_with("wit-bindgen").then(|| value.as_str())
                 });
                 match bindgen_version {
+                    Some(v) if v.starts_with("0.7.") => return Ok(Self::V0_7),
                     Some(v) if v.starts_with("0.6.") => return Ok(Self::V0_6),
                     Some(v) if v.starts_with("0.5.") => return Ok(Self::V0_5),
                     Some(other) => return Ok(Self::Other(other.to_owned())),
@@ -384,11 +388,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rust() -> Result<()> {
+    async fn rust_wit_bindgen_02() -> Result<()> {
         run_spin(
             &fs::read(concat!(
                 env!("OUT_DIR"),
-                "/wasm32-wasi/release/rust_case.wasm"
+                "/wasm32-wasi/release/rust_case_02.wasm"
+            ))
+            .await?,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn rust_wit_bindgen_07() -> Result<()> {
+        run_spin(
+            &fs::read(concat!(
+                env!("OUT_DIR"),
+                "/wasm32-wasi/release/rust_case_07.wasm"
             ))
             .await?,
         )

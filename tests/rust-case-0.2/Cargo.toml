@@ -1,5 +1,5 @@
 [package]
-name = "rust-case"
+name = "rust-case-02"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,5 @@ crate-type = [ "cdylib" ]
 
 [dependencies]
 anyhow = "1.0.44"
-clap = { version = "3.2.20", features = ["derive", "env"] }
-getrandom = "0.2.7"
 wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen", rev = "cb871cfa1ee460b51eb1d144b175b9aab9c50aba" }
+case-helper = { path = "../case-helper" }
