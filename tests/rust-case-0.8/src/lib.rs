@@ -10,7 +10,7 @@ use std::{
 mod wit {
     wit_bindgen::generate!({
         world: "reactor",
-        path: "../wit-0.7",
+        path: "../wit-0.8",
         macro_call_prefix: "wit::",
     });
 }
