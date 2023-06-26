@@ -41,7 +41,7 @@ fn main() {
     .unwrap();
 
     build_rust_test_case(&out_dir, "rust-case-0.2");
-    build_rust_test_case(&out_dir, "rust-case-0.7");
+    build_rust_test_case(&out_dir, "rust-case-0.8");
     build_rust_test_case(&out_dir, "rust-command");
 
     let mut cmd = Command::new("tinygo");

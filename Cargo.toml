@@ -11,7 +11,7 @@ wit-component = "0.11.0"
 wit-parser = "0.8.0"
 
 [dev-dependencies]
-wasmtime = { version = "10.0.0", features = ["component-model"] }
-wasmtime-wasi = "10.0.0"
+wasmtime = { version = "10.0.1", features = ["component-model"] }
+wasmtime-wasi = "10.0.1"
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
