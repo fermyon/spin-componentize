@@ -1,13 +1,13 @@
 use crate::{
     postgres::{self, PgError},
     rdbms_types::{Column, DbDataType, DbValue, ParameterValue, RowSet},
-    Context,
+    Context, TestConfig,
 };
 use anyhow::{ensure, Result};
 use async_trait::async_trait;
 use serde::Serialize;
 use std::{collections::HashMap, iter};
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 
 /// Report of which PostgreSQL functions a module successfully used, if any
 #[derive(Serialize, PartialEq, Eq, Debug)]
@@ -93,30 +93,34 @@ impl postgres::Host for Postgres {
 }
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<PostgresReport> {
     Ok(PostgresReport {
-        execute: test_execute(store, pre).await,
-        query: test_query(store, pre).await,
+        execute: test_execute(engine, test_config.clone(), pre).await,
+        query: test_query(engine, test_config, pre).await,
     })
 }
 
 async fn test_execute(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<(), String> {
-    store.data_mut().postgres.execute_map.insert(
-        (
-            "127.0.0.1".into(),
-            "INSERT INTO foo (x) VALUES ($1)".into(),
-            format!("{:?}", vec![ParameterValue::Int8(42)]),
-        ),
-        1,
-    );
+    let mut store = crate::create_store_with_context(engine, test_config, |context| {
+        context.postgres.execute_map.insert(
+            (
+                "127.0.0.1".into(),
+                "INSERT INTO foo (x) VALUES ($1)".into(),
+                format!("{:?}", vec![ParameterValue::Int8(42)]),
+            ),
+            1,
+        );
+    });
 
     crate::run_command(
-        store,
+        &mut store,
         pre,
         &[
             "postgres-execute",
@@ -136,7 +140,11 @@ async fn test_execute(
     .await
 }
 
-async fn test_query(store: &mut Store<Context>, pre: &InstancePre<Context>) -> Result<(), String> {
+async fn test_query(
+    engine: &Engine,
+    test_config: TestConfig,
+    pre: &InstancePre<Context>,
+) -> Result<(), String> {
     let row_set = RowSet {
         columns: vec![Column {
             name: "x".into(),
@@ -145,17 +153,19 @@ async fn test_query(store: &mut Store<Context>, pre: &InstancePre<Context>) -> R
         rows: vec![vec![DbValue::Int8(42)]],
     };
 
-    store.data_mut().postgres.query_map.insert(
-        (
-            "127.0.0.1".into(),
-            "SELECT x FROM foo".into(),
-            format!("{:?}", Vec::<()>::new()),
-        ),
-        row_set,
-    );
+    let mut store = crate::create_store_with_context(engine, test_config, |context| {
+        context.postgres.query_map.insert(
+            (
+                "127.0.0.1".into(),
+                "SELECT x FROM foo".into(),
+                format!("{:?}", Vec::<()>::new()),
+            ),
+            row_set,
+        );
+    });
 
     crate::run_command(
-        store,
+        &mut store,
         pre,
         &["postgres-query", "127.0.0.1", "SELECT x FROM foo"],
         |store| {

@@ -1,19 +1,21 @@
 use crate::{
     redis_types::{Error, Payload},
-    Context,
+    Context, TestConfig,
 };
 use anyhow::anyhow;
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<(), String> {
     super::run(async {
-        let instance = pre.instantiate_async(&mut *store).await?;
+        let mut store = crate::create_store(engine, test_config);
+        let instance = pre.instantiate_async(&mut store).await?;
 
         let func = instance
-            .exports(&mut *store)
+            .exports(&mut store)
             .instance("fermyon:spin/inbound-redis")
             .ok_or_else(|| anyhow!("no inbound-redis instance found"))?
             .typed_func::<(Payload,), (Result<(), Error>,)>("handle-message")?;

@@ -1,19 +1,21 @@
 use crate::{
     http_types::{Method, Request, Response},
-    Context,
+    Context, TestConfig,
 };
 use anyhow::{anyhow, ensure};
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<(), String> {
     crate::run(async {
-        let instance = pre.instantiate_async(&mut *store).await?;
+        let mut store = crate::create_store(engine, test_config);
+        let instance = pre.instantiate_async(&mut store).await?;
 
         let func = instance
-            .exports(&mut *store)
+            .exports(&mut store)
             .instance("fermyon:spin/inbound-http")
             .ok_or_else(|| anyhow!("no fermyon:spin/inbound-http instance found"))?
             .typed_func::<(Request,), (Response,)>("handle-request")?;

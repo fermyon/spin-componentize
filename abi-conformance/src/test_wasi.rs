@@ -1,20 +1,28 @@
-use crate::Context;
+use crate::{Context, TestConfig};
 use anyhow::{ensure, Result};
 use cap_std::fs::Dir;
+use rand_chacha::ChaCha12Core;
+use rand_core::{
+    block::{BlockRng, BlockRngCore},
+    SeedableRng,
+};
 use serde::Serialize;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::{
     collections::HashSet,
     fs::File,
     io::Write,
     ops::Deref,
-    path::Path,
     time::{Duration, SystemTime},
 };
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 use wasmtime_wasi::preview2::{
+    clocks::host::clocks_ctx,
     pipe::{ReadPipe, WritePipe},
-    stream::TableStreamExt,
-    InputStream, OutputStream, WasiCtxBuilder, WasiView, WasiWallClock,
+    WasiWallClock,
 };
 
 /// Report of which WASI functions a module successfully used, if any
@@ -86,20 +94,19 @@ pub struct WasiReport {
 }
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<WasiReport> {
     Ok(WasiReport {
         env: {
             let stdout = WritePipe::new_in_memory();
-            set_stdout(store, &stdout);
-            store
-                .data_mut()
-                .wasi
-                .env
-                .push(("foo".to_owned(), "bar".to_owned()));
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.push_env("foo".to_owned(), "bar".to_owned())
+                    .set_stdout(stdout.clone())
+            });
 
-            crate::run_command(store, pre, &["wasi-env", "foo"], move |_| {
+            crate::run_command(&mut store, pre, &["wasi-env", "foo"], move |_| {
                 let stdout = String::from_utf8(stdout.try_into_inner().unwrap().into_inner())?;
                 ensure!(
                     "bar" == stdout.deref(),
@@ -127,13 +134,13 @@ pub(crate) async fn test(
             }
 
             let stdout = WritePipe::new_in_memory();
-            {
-                set_stdout(store, &stdout);
-                let context = store.data_mut();
-                context.wasi.clocks.wall = Box::new(MyClock);
-            }
+            let mut clocks = clocks_ctx();
+            clocks.wall = Box::new(MyClock);
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.set_stdout(stdout.clone()).set_clocks(clocks)
+            });
 
-            crate::run_command(store, pre, &["wasi-epoch"], move |_| {
+            crate::run_command(&mut store, pre, &["wasi-epoch"], move |_| {
                 let stdout = String::from_utf8(stdout.try_into_inner().unwrap().into_inner())?;
                 ensure!(
                     TIME.to_string() == stdout,
@@ -146,67 +153,51 @@ pub(crate) async fn test(
         },
 
         random: {
-            // TODO: Turning off testing of random for now
-            //
-            // wasi preview 2 goes out of its way to prevent changing the random implementation.
-            // (this is likely a good idea except for the innocent testing case we have here)
-            // The preview 2 implementation does allow changing the random implementation
-            // in cfg(test) so we could consider only running these tests in cfg(test) mode.
-            //
-            // We could also instead find a way to use the `random::get-insecure-random-u64`
-            // which can be controlled through `WasiCtx`'s `insecure_random` field.
+            #[derive(Clone)]
+            struct MyRngCore {
+                cha_cha_12: ChaCha12Core,
+                called: Arc<AtomicBool>,
+            }
 
-            // use std::sync::{
-            //     atomic::{AtomicBool, Ordering},
-            //     Arc,
-            // };
-            // use rand_chacha::ChaCha12Core;
-            // use rand_core::{
-            //     block::{BlockRng, BlockRngCore},
-            //     SeedableRng,
-            // };
-            // #[derive(Clone)]
-            // struct MyRngCore {
-            //     cha_cha_12: ChaCha12Core,
-            //     called: Arc<AtomicBool>,
-            // }
+            impl BlockRngCore for MyRngCore {
+                type Item = <ChaCha12Core as BlockRngCore>::Item;
+                type Results = <ChaCha12Core as BlockRngCore>::Results;
 
-            // impl BlockRngCore for MyRngCore {
-            //     type Item = <ChaCha12Core as BlockRngCore>::Item;
-            //     type Results = <ChaCha12Core as BlockRngCore>::Results;
+                fn generate(&mut self, results: &mut Self::Results) {
+                    self.called.store(true, Ordering::Relaxed);
+                    self.cha_cha_12.generate(results)
+                }
+            }
 
-            //     fn generate(&mut self, results: &mut Self::Results) {
-            //         self.called.store(true, Ordering::Relaxed);
-            //         self.cha_cha_12.generate(results)
-            //     }
-            // }
+            let called = Arc::new(AtomicBool::default());
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.set_insecure_random(Box::new(BlockRng::new(MyRngCore {
+                    cha_cha_12: ChaCha12Core::seed_from_u64(42),
+                    called: called.clone(),
+                })))
+            });
 
-            // // let called = Arc::new(AtomicBool::default());
-            // // store.data_mut().wasi.insecure_random = Box::new(BlockRng::new(MyRngCore {
-            // //     cha_cha_12: ChaCha12Core::seed_from_u64(42),
-            // //     called: called.clone(),
-            // // }));
+            crate::run_command(&mut store, pre, &["wasi-random"], move |_| {
+                // TODO: fix test to pass
+                // ensure!(
+                //     called.load(Ordering::Relaxed),
+                //     "expected module to call `wasi_snapshot_preview1::random_get` at least once"
+                // );
 
-            // crate::run_command(store, pre, &["wasi-random"], move |_| {
-            //     ensure!(
-            //         called.load(Ordering::Relaxed),
-            //         "expected module to call `wasi_snapshot_preview1::random_get` at least once"
-            //     );
-
-            //     Ok(())
-            // })
-            // .await
-            Ok(())
+                Ok(())
+            })
+            .await
         },
 
         stdio: {
             let stdin = ReadPipe::from("All mimsy were the borogroves");
             let stdout = WritePipe::new_in_memory();
 
-            set_stdin(store, &stdin);
-            set_stdout(store, &stdout);
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.set_stdout(stdout.clone()).set_stdin(stdin.clone())
+            });
 
-            crate::run_command(store, pre, &["wasi-stdio"], move |_| {
+            crate::run_command(&mut store, pre, &["wasi-stdio"], move |_| {
                 let stdin = stdin.try_into_inner().unwrap().into_inner();
                 let stdout = String::from_utf8(stdout.try_into_inner().unwrap().into_inner())?;
                 ensure!(
@@ -225,11 +216,20 @@ pub(crate) async fn test(
             let dir = tempfile::tempdir()?;
             let mut file = File::create(dir.path().join("foo.txt"))?;
             file.write_all(message.as_bytes())?;
+            let dir = Dir::from_std_file(File::open(dir.path())?);
+            let perms = wasmtime_wasi::preview2::DirPerms::all();
+            let file_perms = wasmtime_wasi::preview2::FilePerms::all();
 
-            set_stdout(store, &stdout);
-            add_dir(store, dir.path())?;
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.set_stdout(stdout.clone()).push_preopened_dir(
+                    dir,
+                    perms,
+                    file_perms,
+                    String::from("/"),
+                )
+            });
 
-            crate::run_command(store, pre, &["wasi-read", "foo.txt"], move |_| {
+            crate::run_command(&mut store, pre, &["wasi-read", "foo.txt"], move |_| {
                 let stdout = String::from_utf8(stdout.try_into_inner().unwrap().into_inner())?;
                 ensure!(
                     message == stdout.deref(),
@@ -249,11 +249,19 @@ pub(crate) async fn test(
             for &name in &names {
                 File::create(dir.path().join(name))?;
             }
+            let dir = Dir::from_std_file(File::open(dir.path())?);
+            let perms = wasmtime_wasi::preview2::DirPerms::all();
+            let file_perms = wasmtime_wasi::preview2::FilePerms::all();
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.set_stdout(stdout.clone()).push_preopened_dir(
+                    dir,
+                    perms,
+                    file_perms,
+                    String::from("/"),
+                )
+            });
 
-            set_stdout(store, &stdout);
-            add_dir(store, dir.path())?;
-
-            crate::run_command(store, pre, &["wasi-readdir", "/"], move |_| {
+            crate::run_command(&mut store, pre, &["wasi-readdir", "/"], move |_| {
                 let expected = names.iter().copied().collect::<HashSet<_>>();
                 let stdout = String::from_utf8(stdout.try_into_inner().unwrap().into_inner())?;
                 let got = stdout.split(',').collect();
@@ -274,11 +282,20 @@ pub(crate) async fn test(
             let mut file = File::create(dir.path().join("foo.txt"))?;
             file.write_all(message.as_bytes())?;
             let metadata = file.metadata()?;
+            let dir = Dir::from_std_file(File::open(dir.path())?);
+            let perms = wasmtime_wasi::preview2::DirPerms::all();
+            let file_perms = wasmtime_wasi::preview2::FilePerms::all();
 
-            set_stdout(store, &stdout);
-            add_dir(store, dir.path())?;
+            let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
+                wasi.set_stdout(stdout.clone()).push_preopened_dir(
+                    dir,
+                    perms,
+                    file_perms,
+                    String::from("/"),
+                )
+            });
 
-            crate::run_command(store, pre, &["wasi-stat", "foo.txt"], move |_| {
+            crate::run_command(&mut store, pre, &["wasi-stat", "foo.txt"], move |_| {
                 let expected = format!(
                     "length:{},modified:{}",
                     metadata.len(),
@@ -299,49 +316,4 @@ pub(crate) async fn test(
             .await
         },
     })
-}
-
-fn add_dir(store: &mut Store<Context>, path: &Path) -> Result<()> {
-    let dir = Dir::from_std_file(File::open(path)?);
-    let perms = wasmtime_wasi::preview2::DirPerms::all();
-    let file_perms = wasmtime_wasi::preview2::FilePerms::all();
-    let new = WasiCtxBuilder::new()
-        .push_preopened_dir(dir, perms, file_perms, String::from("/"))
-        .build(store.data_mut().table_mut())
-        .unwrap();
-    store
-        .data_mut()
-        .wasi
-        .preopens
-        .extend(new.preopens.into_iter());
-
-    Ok(())
-}
-
-fn set_stdout(store: &mut Store<Context>, stdout: &WritePipe<std::io::Cursor<Vec<u8>>>) {
-    let key = store.data().wasi.stdout;
-    store
-        .data_mut()
-        .table_mut()
-        .delete::<Box<dyn OutputStream>>(key)
-        .unwrap();
-    store.data_mut().wasi.stdout = store
-        .data_mut()
-        .table_mut()
-        .push_output_stream(Box::new(stdout.clone()))
-        .unwrap();
-}
-
-fn set_stdin(store: &mut Store<Context>, stdin: &ReadPipe<std::io::Cursor<String>>) {
-    let key = store.data().wasi.stdin;
-    store
-        .data_mut()
-        .table_mut()
-        .delete::<Box<dyn InputStream>>(key)
-        .unwrap();
-    store.data_mut().wasi.stdin = store
-        .data_mut()
-        .table_mut()
-        .push_input_stream(Box::new(stdin.clone()))
-        .unwrap();
 }
