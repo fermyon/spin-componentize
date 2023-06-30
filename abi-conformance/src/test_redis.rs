@@ -1,12 +1,12 @@
 use crate::{
     redis::{self, Error, RedisParameter, RedisResult},
-    Context,
+    Context, TestConfig,
 };
 use anyhow::{ensure, Result};
 use async_trait::async_trait;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 
 /// Report of which Redis tests succeeded or failed
 #[derive(Serialize, PartialEq, Eq, Debug)]
@@ -208,19 +208,22 @@ impl redis::Host for Redis {
 }
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<RedisReport> {
     Ok(RedisReport {
         publish: {
-            store.data_mut().redis.publish_set.insert((
-                "127.0.0.1".into(),
-                "foo".into(),
-                "bar".as_bytes().to_vec(),
-            ));
-
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.publish_set.insert((
+                        "127.0.0.1".into(),
+                        "foo".into(),
+                        "bar".as_bytes().to_vec(),
+                    ));
+                });
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["redis-publish", "127.0.0.1", "foo", "bar"],
                 |store| {
@@ -236,14 +239,16 @@ pub(crate) async fn test(
         },
 
         set: {
-            store.data_mut().redis.set_set.insert((
-                "127.0.0.1".into(),
-                "foo".into(),
-                "bar".as_bytes().to_vec(),
-            ));
-
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.set_set.insert((
+                        "127.0.0.1".into(),
+                        "foo".into(),
+                        "bar".as_bytes().to_vec(),
+                    ));
+                });
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["redis-set", "127.0.0.1", "foo", "bar"],
                 |store| {
@@ -259,70 +264,93 @@ pub(crate) async fn test(
         },
 
         get: {
-            store.data_mut().redis.get_map.insert(
-                ("127.0.0.1".into(), "foo".into()),
-                "bar".as_bytes().to_vec(),
-            );
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.get_map.insert(
+                        ("127.0.0.1".into(), "foo".into()),
+                        "bar".as_bytes().to_vec(),
+                    );
+                });
+            crate::run_command(
+                &mut store,
+                pre,
+                &["redis-get", "127.0.0.1", "foo"],
+                |store| {
+                    ensure!(
+                        store.data().redis.get_map.is_empty(),
+                        "expected module to call `redis::get` exactly once"
+                    );
 
-            crate::run_command(store, pre, &["redis-get", "127.0.0.1", "foo"], |store| {
-                ensure!(
-                    store.data().redis.get_map.is_empty(),
-                    "expected module to call `redis::get` exactly once"
-                );
-
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .await
         },
 
         incr: {
-            store
-                .data_mut()
-                .redis
-                .incr_map
-                .insert(("127.0.0.1".into(), "foo".into()), 41);
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context
+                        .redis
+                        .incr_map
+                        .insert(("127.0.0.1".into(), "foo".into()), 41);
+                });
 
-            crate::run_command(store, pre, &["redis-incr", "127.0.0.1", "foo"], |store| {
-                ensure!(
-                    store.data().redis.incr_map.is_empty(),
-                    "expected module to call `redis::incr` exactly once"
-                );
+            crate::run_command(
+                &mut store,
+                pre,
+                &["redis-incr", "127.0.0.1", "foo"],
+                |store| {
+                    ensure!(
+                        store.data().redis.incr_map.is_empty(),
+                        "expected module to call `redis::incr` exactly once"
+                    );
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .await
         },
 
         del: {
-            store
-                .data_mut()
-                .redis
-                .del_map
-                .insert(("127.0.0.1".into(), vec!["foo".to_owned()]), 0);
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context
+                        .redis
+                        .del_map
+                        .insert(("127.0.0.1".into(), vec!["foo".to_owned()]), 0);
+                });
+            crate::run_command(
+                &mut store,
+                pre,
+                &["redis-del", "127.0.0.1", "foo"],
+                |store| {
+                    ensure!(
+                        store.data().redis.del_map.is_empty(),
+                        "expected module to call `redis::del` exactly once"
+                    );
 
-            crate::run_command(store, pre, &["redis-del", "127.0.0.1", "foo"], |store| {
-                ensure!(
-                    store.data().redis.del_map.is_empty(),
-                    "expected module to call `redis::del` exactly once"
-                );
-
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .await
         },
 
         sadd: {
-            store.data_mut().redis.sadd_map.insert(
-                (
-                    "127.0.0.1".into(),
-                    "foo".to_owned(),
-                    vec!["bar".to_owned(), "baz".to_owned()],
-                ),
-                0,
-            );
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.sadd_map.insert(
+                        (
+                            "127.0.0.1".into(),
+                            "foo".to_owned(),
+                            vec!["bar".to_owned(), "baz".to_owned()],
+                        ),
+                        0,
+                    );
+                });
 
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["redis-sadd", "127.0.0.1", "foo", "bar", "baz"],
                 |store| {
@@ -338,17 +366,20 @@ pub(crate) async fn test(
         },
 
         srem: {
-            store.data_mut().redis.srem_map.insert(
-                (
-                    "127.0.0.1".into(),
-                    "foo".to_owned(),
-                    vec!["bar".to_owned(), "baz".to_owned()],
-                ),
-                0,
-            );
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.srem_map.insert(
+                        (
+                            "127.0.0.1".into(),
+                            "foo".to_owned(),
+                            vec!["bar".to_owned(), "baz".to_owned()],
+                        ),
+                        0,
+                    );
+                });
 
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["redis-srem", "127.0.0.1", "foo", "bar", "baz"],
                 |store| {
@@ -364,13 +395,16 @@ pub(crate) async fn test(
         },
 
         smembers: {
-            store.data_mut().redis.smembers_map.insert(
-                ("127.0.0.1".into(), "foo".to_owned()),
-                vec!["bar".to_owned(), "baz".to_owned()],
-            );
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.smembers_map.insert(
+                        ("127.0.0.1".into(), "foo".to_owned()),
+                        vec!["bar".to_owned(), "baz".to_owned()],
+                    );
+                });
 
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["redis-smembers", "127.0.0.1", "foo"],
                 |store| {
@@ -386,17 +420,20 @@ pub(crate) async fn test(
         },
 
         execute: {
-            store.data_mut().redis.execute_map.insert(
-                (
-                    "127.0.0.1".into(),
-                    "append".to_owned(),
-                    vec![b"foo".to_vec(), b"baz".to_vec()],
-                ),
-                vec![RedisResult::Int64(3)],
-            );
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.redis.execute_map.insert(
+                        (
+                            "127.0.0.1".into(),
+                            "append".to_owned(),
+                            vec![b"foo".to_vec(), b"baz".to_vec()],
+                        ),
+                        vec![RedisResult::Int64(3)],
+                    );
+                });
 
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["redis-execute", "127.0.0.1", "append", "foo", "baz"],
                 |store| {

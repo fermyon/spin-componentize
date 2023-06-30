@@ -1,9 +1,9 @@
-use crate::{config, Context};
+use crate::{config, Context, TestConfig};
 use anyhow::{ensure, Result};
 use std::collections::HashMap;
 use wasmtime::{
     component::{InstancePre, __internal::async_trait},
-    Store,
+    Engine,
 };
 
 #[derive(Default)]
@@ -22,16 +22,15 @@ impl config::Host for Config {
 }
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<(), String> {
-    store
-        .data_mut()
-        .config
-        .map
-        .insert("foo".into(), "bar".into());
+    let mut store = crate::create_store_with_context(engine, test_config, |context| {
+        context.config.map.insert("foo".into(), "bar".into());
+    });
 
-    crate::run_command(store, pre, &["config", "foo"], |store| {
+    crate::run_command(&mut store, pre, &["config", "foo"], |store| {
         ensure!(
             store.data().config.map.is_empty(),
             "expected module to call `spin-config::get-config` exactly once"

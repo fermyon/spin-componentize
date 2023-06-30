@@ -1,6 +1,6 @@
 use crate::{
     key_value::{self, Error, Store as KvStore},
-    Context,
+    Context, TestConfig,
 };
 use anyhow::{anyhow, ensure, Result};
 use async_trait::async_trait;
@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     iter,
 };
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 
 /// Report of which key-value functions a module successfully used, if any
 #[derive(Serialize, PartialEq, Eq, Debug)]
@@ -130,14 +130,18 @@ impl key_value::Host for KeyValue {
 }
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<KeyValueReport> {
     Ok(KeyValueReport {
         open: {
-            store.data_mut().key_value.open_map.insert("foo".into(), 42);
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.key_value.open_map.insert("foo".into(), 42);
+                });
 
-            crate::run_command(store, pre, &["key-value-open", "foo"], |store| {
+            crate::run_command(&mut store, pre, &["key-value-open", "foo"], |store| {
                 ensure!(
                     store.data().key_value.open_map.is_empty(),
                     "expected module to call `key_value::open` exactly once"
@@ -149,13 +153,15 @@ pub(crate) async fn test(
         },
 
         get: {
-            store
-                .data_mut()
-                .key_value
-                .get_map
-                .insert((42, "foo".into()), b"bar".to_vec());
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context
+                        .key_value
+                        .get_map
+                        .insert((42, "foo".into()), b"bar".to_vec());
+                });
 
-            crate::run_command(store, pre, &["key-value-get", "42", "foo"], |store| {
+            crate::run_command(&mut store, pre, &["key-value-get", "42", "foo"], |store| {
                 ensure!(
                     store.data().key_value.get_map.is_empty(),
                     "expected module to call `key_value::get` exactly once"
@@ -167,14 +173,16 @@ pub(crate) async fn test(
         },
 
         set: {
-            store
-                .data_mut()
-                .key_value
-                .set_set
-                .insert((42, "foo".into(), b"bar".to_vec()));
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context
+                        .key_value
+                        .set_set
+                        .insert((42, "foo".into(), b"bar".to_vec()));
+                });
 
             crate::run_command(
-                store,
+                &mut store,
                 pre,
                 &["key-value-set", "42", "foo", "bar"],
                 |store| {
@@ -190,49 +198,62 @@ pub(crate) async fn test(
         },
 
         delete: {
-            store
-                .data_mut()
-                .key_value
-                .delete_set
-                .insert((42, "foo".into()));
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context.key_value.delete_set.insert((42, "foo".into()));
+                });
 
-            crate::run_command(store, pre, &["key-value-delete", "42", "foo"], |store| {
-                ensure!(
-                    store.data().key_value.delete_set.is_empty(),
-                    "expected module to call `key_value::delete` exactly once"
-                );
+            crate::run_command(
+                &mut store,
+                pre,
+                &["key-value-delete", "42", "foo"],
+                |store| {
+                    ensure!(
+                        store.data().key_value.delete_set.is_empty(),
+                        "expected module to call `key_value::delete` exactly once"
+                    );
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .await
         },
 
         exists: {
-            store
-                .data_mut()
-                .key_value
-                .exists_map
-                .insert((42, "foo".into()), true);
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context
+                        .key_value
+                        .exists_map
+                        .insert((42, "foo".into()), true);
+                });
 
-            crate::run_command(store, pre, &["key-value-exists", "42", "foo"], |store| {
-                ensure!(
-                    store.data().key_value.exists_map.is_empty(),
-                    "expected module to call `key_value::exists` exactly once"
-                );
+            crate::run_command(
+                &mut store,
+                pre,
+                &["key-value-exists", "42", "foo"],
+                |store| {
+                    ensure!(
+                        store.data().key_value.exists_map.is_empty(),
+                        "expected module to call `key_value::exists` exactly once"
+                    );
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .await
         },
 
         get_keys: {
-            store
-                .data_mut()
-                .key_value
-                .get_keys_map
-                .insert(42, vec!["foo".into(), "bar".into()]);
+            let mut store =
+                crate::create_store_with_context(engine, test_config.clone(), |context| {
+                    context
+                        .key_value
+                        .get_keys_map
+                        .insert(42, vec!["foo".into(), "bar".into()]);
+                });
 
-            crate::run_command(store, pre, &["key-value-get-keys", "42"], |store| {
+            crate::run_command(&mut store, pre, &["key-value-get-keys", "42"], |store| {
                 ensure!(
                     store.data().key_value.get_keys_map.is_empty(),
                     "expected module to call `key_value::get_keys` exactly once"
@@ -244,9 +265,11 @@ pub(crate) async fn test(
         },
 
         close: {
-            store.data_mut().key_value.close_set.insert(42);
+            let mut store = crate::create_store_with_context(engine, test_config, |context| {
+                context.key_value.close_set.insert(42);
+            });
 
-            crate::run_command(store, pre, &["key-value-close", "42"], |store| {
+            crate::run_command(&mut store, pre, &["key-value-close", "42"], |store| {
                 ensure!(
                     store.data().key_value.close_set.is_empty(),
                     "expected module to call `key_value::close` exactly once"

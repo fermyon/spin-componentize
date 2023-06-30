@@ -1,12 +1,12 @@
 use crate::{
     http,
     http_types::{HttpError, Request, Response},
-    Context,
+    Context, TestConfig,
 };
 use anyhow::{ensure, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use wasmtime::{component::InstancePre, Store};
+use wasmtime::{component::InstancePre, Engine};
 
 #[derive(Default)]
 pub(crate) struct Http {
@@ -29,22 +29,29 @@ impl http::Host for Http {
 }
 
 pub(crate) async fn test(
-    store: &mut Store<Context>,
+    engine: &Engine,
+    test_config: TestConfig,
     pre: &InstancePre<Context>,
 ) -> Result<(), String> {
-    store
-        .data_mut()
-        .http
-        .map
-        .insert("http://127.0.0.1/test".into(), "Jabberwocky".into());
+    let mut store = crate::create_store_with_context(engine, test_config, |context| {
+        context
+            .http
+            .map
+            .insert("http://127.0.0.1/test".into(), "Jabberwocky".into());
+    });
 
-    crate::run_command(store, pre, &["http", "http://127.0.0.1/test"], |store| {
-        ensure!(
-            store.data().http.map.is_empty(),
-            "expected module to call `wasi-outbound-http::request` exactly once"
-        );
+    crate::run_command(
+        &mut store,
+        pre,
+        &["http", "http://127.0.0.1/test"],
+        |store| {
+            ensure!(
+                store.data().http.map.is_empty(),
+                "expected module to call `wasi-outbound-http::request` exactly once"
+            );
 
-        Ok(())
-    })
+            Ok(())
+        },
+    )
     .await
 }
