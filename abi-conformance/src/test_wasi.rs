@@ -20,9 +20,8 @@ use std::{
 };
 use wasmtime::{component::InstancePre, Engine};
 use wasmtime_wasi::preview2::{
-    clocks::host::clocks_ctx,
     pipe::{ReadPipe, WritePipe},
-    WasiWallClock,
+    HostWallClock,
 };
 
 /// Report of which WASI functions a module successfully used, if any
@@ -123,7 +122,7 @@ pub(crate) async fn test(
 
             struct MyClock;
 
-            impl WasiWallClock for MyClock {
+            impl HostWallClock for MyClock {
                 fn resolution(&self) -> Duration {
                     Duration::from_millis(1)
                 }
@@ -134,10 +133,8 @@ pub(crate) async fn test(
             }
 
             let stdout = WritePipe::new_in_memory();
-            let mut clocks = clocks_ctx();
-            clocks.wall = Box::new(MyClock);
             let mut store = crate::create_store_with_wasi(engine, test_config.clone(), |wasi| {
-                wasi.set_stdout(stdout.clone()).set_clocks(clocks)
+                wasi.set_stdout(stdout.clone()).set_wall_clock(MyClock)
             });
 
             crate::run_command(&mut store, pre, &["wasi-epoch"], move |_| {
