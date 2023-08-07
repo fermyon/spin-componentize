@@ -226,7 +226,11 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
 
 #[cfg(test)]
 mod tests {
-    use wasmtime_wasi::preview2::{wasi::command::Command, Table, WasiView};
+    use wasmtime_wasi::preview2::{
+        command::Command,
+        pipe::{MemoryInputPipe, MemoryOutputPipe},
+        Table, WasiView,
+    };
 
     use {
         anyhow::{anyhow, Result},
@@ -234,13 +238,11 @@ mod tests {
             InvocationStyle, KeyValueReport, MysqlReport, PostgresReport, RedisReport, Report,
             TestConfig, WasiReport,
         },
-        std::io::Cursor,
         tokio::fs,
         wasmtime::{
             component::{Component, Linker},
             Config, Engine, Store,
         },
-        wasmtime_wasi::preview2::pipe::{ReadPipe, WritePipe},
         wasmtime_wasi::preview2::{WasiCtx, WasiCtxBuilder},
     };
 
@@ -343,16 +345,15 @@ mod tests {
         }
 
         let mut linker = Linker::<Wasi>::new(&engine);
-        wasmtime_wasi::preview2::wasi::command::add_to_linker(&mut linker)?;
-        let ctx = WasiCtxBuilder::new();
-        let stdout = WritePipe::new_in_memory();
+        wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
+        let mut ctx = WasiCtxBuilder::new();
+        let stdout = MemoryOutputPipe::new();
         let ctx = ctx
-            .set_stdin(ReadPipe::new(Cursor::new(
-                "So rested he by the Tumtum tree",
-            )))
-            .set_stdout(stdout.clone())
-            .set_args(&["Jabberwocky"]);
-
+            .stdin(MemoryInputPipe::new(
+                "So rested he by the Tumtum tree".into(),
+            ))
+            .stdout(stdout.clone())
+            .args(&["Jabberwocky"]);
         let mut table = Table::new();
         let wasi = Wasi {
             ctx: ctx.build(&mut table).unwrap(),
@@ -371,12 +372,9 @@ mod tests {
 
         drop(store);
 
-        let stdout = stdout.try_into_inner().unwrap().into_inner();
+        let stdout = String::from_utf8(stdout.try_into_inner().unwrap().to_vec()).unwrap();
 
-        assert_eq!(
-            b"Jabberwocky\nSo rested he by the Tumtum tree" as &[_],
-            &stdout
-        );
+        assert_eq!("Jabberwocky\nSo rested he by the Tumtum tree", &stdout);
 
         Ok(())
     }

@@ -6,7 +6,7 @@ use std::{
 
 /// The git sha of the wasmtime commit the adapter WebAssembly modules
 /// found in './adapters' have been built from.
-const ADAPTERS_SHA: &str = "7513464";
+const ADAPTERS_SHA: &str = "c4eafed";
 
 fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());

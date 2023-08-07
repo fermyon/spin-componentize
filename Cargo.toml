@@ -5,13 +5,15 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-wasmparser = "0.107.0"
-wasm-encoder = "0.29.0"
-wit-component = "0.11.0"
-wit-parser = "0.8.0"
+wasmparser = "0.110.0"
+wasm-encoder = "0.31.0"
+wit-component = "0.13.1"
+wit-parser = "0.9.2"
 
 [dev-dependencies]
-wasmtime = { version = "10.0.1", features = ["component-model"] }
-wasmtime-wasi = "10.0.1"
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", features = [
+    "component-model",
+], rev = "3878a0025e8c2f44f8ed2e7064cd5188574e7d6c" }
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "3878a0025e8c2f44f8ed2e7064cd5188574e7d6c" }
 tokio = { version = "1", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
