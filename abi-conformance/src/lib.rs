@@ -54,7 +54,7 @@ mod test_redis;
 mod test_wasi;
 
 wasmtime::component::bindgen!({
-    path: "../wasmtime/crates/wasi/wit",
+    path: "../wit",
     world: "fermyon:spin/reactor",
     async: true
 });

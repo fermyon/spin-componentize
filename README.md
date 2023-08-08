@@ -21,3 +21,13 @@ rustup target add wasm32-unknown-unknown
 Then run `cargo build --release`.  Note that this is currently only a library
 and does not yet have a CLI interface, although that would be easy to add if
 desired.
+
+## Testing
+
+To test whether the spin componentize process produces wasm components that can be used with wasmtime, we run "abi conformance" testing. These tests are run with a plain `cargo test` invocation.
+
+## Wit and Adapters
+
+spin-componentize and the abi conformance tests use custom wit definitions and component adapters built from wasmtime.
+
+See the [adapters README](./adapters/README.md) and [wit README](./wit/README.md) for more information.
