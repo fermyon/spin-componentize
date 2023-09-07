@@ -260,6 +260,9 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
         Command::KeyValueClose { store } => {
             spin::key_value::close(store);
         }
+        Command::LlmInfer { model, prompt } => {
+            spin::llm::infer(&model, &prompt, None);
+        }
 
         Command::WasiEnv { key } => Command::env(key)?,
         Command::WasiEpoch => Command::epoch()?,

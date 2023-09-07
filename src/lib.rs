@@ -226,13 +226,14 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Context;
     use wasmtime_wasi::preview2::{wasi::command::Command, Table, WasiView};
 
     use {
         anyhow::{anyhow, Result},
         spin_abi_conformance::{
-            InvocationStyle, KeyValueReport, MysqlReport, PostgresReport, RedisReport, Report,
-            TestConfig, WasiReport,
+            InvocationStyle, KeyValueReport, LlmReport, MysqlReport, PostgresReport, RedisReport,
+            Report, TestConfig, WasiReport,
         },
         std::io::Cursor,
         tokio::fs,
@@ -251,7 +252,11 @@ mod tests {
 
         let engine = Engine::new(&config)?;
 
-        let component = Component::new(&engine, crate::componentize(module)?)?;
+        let component = Component::new(
+            &engine,
+            crate::componentize(module).context("could not componentize")?,
+        )
+        .context("failed to instantiate componentized bytes")?;
 
         let report = spin_abi_conformance::test(
             &component,
@@ -260,7 +265,8 @@ mod tests {
                 invocation_style: InvocationStyle::InboundHttp,
             },
         )
-        .await?;
+        .await
+        .context("abi conformance test failed")?;
 
         let expected = Report {
             inbound_http: Ok(()),
@@ -295,6 +301,7 @@ mod tests {
                 get_keys: Ok(()),
                 close: Ok(()),
             },
+            llm: LlmReport { infer: Ok(()) },
             wasi: WasiReport {
                 env: Ok(()),
                 epoch: Ok(()),
