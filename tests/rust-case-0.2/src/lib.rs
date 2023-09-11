@@ -152,6 +152,8 @@ impl fmt::Display for key_value::Error {
 
 impl error::Error for key_value::Error {}
 
+wit_bindgen_rust::import!("../wit/llm.wit");
+
 fn dispatch(body: Option<Vec<u8>>) -> Response {
     match execute(body) {
         Ok(()) => {
@@ -351,6 +353,9 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
 
         Command::KeyValueClose { store } => {
             key_value::close(*store);
+        }
+        Command::LlmInfer { model, prompt } => {
+            llm::infer(model, prompt, None);
         }
 
         Command::WasiEnv { key } => Command::env(key.clone())?,

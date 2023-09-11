@@ -28,6 +28,7 @@ use std::{future::Future, str};
 use test_config::Config;
 use test_http::Http;
 use test_key_value::KeyValue;
+use test_llm::Llm;
 use test_mysql::Mysql;
 use test_postgres::Postgres;
 use test_redis::Redis;
@@ -38,6 +39,7 @@ use wasmtime::{
 use wasmtime_wasi::preview2::{pipe::WritePipe, Table, WasiCtx, WasiCtxBuilder, WasiView};
 
 pub use test_key_value::KeyValueReport;
+pub use test_llm::LlmReport;
 pub use test_mysql::MysqlReport;
 pub use test_postgres::PostgresReport;
 pub use test_redis::RedisReport;
@@ -48,6 +50,7 @@ mod test_http;
 mod test_inbound_http;
 mod test_inbound_redis;
 mod test_key_value;
+mod test_llm;
 mod test_mysql;
 mod test_postgres;
 mod test_redis;
@@ -137,6 +140,11 @@ pub struct Report {
     /// See [`KeyValueReport`] for details.
     pub key_value: KeyValueReport,
 
+    /// Results of the Spin llm tests
+    ///
+    /// See [`LlmReport`] for details.
+    pub llm: LlmReport,
+
     /// Results of the WASI tests
     ///
     /// See [`WasiReport`] for details.
@@ -159,6 +167,7 @@ pub async fn test(
     postgres::add_to_linker(&mut linker, |context| &mut context.postgres)?;
     mysql::add_to_linker(&mut linker, |context| &mut context.mysql)?;
     key_value::add_to_linker(&mut linker, |context| &mut context.key_value)?;
+    llm::add_to_linker(&mut linker, |context| &mut context.llm)?;
     config::add_to_linker(&mut linker, |context| &mut context.config)?;
 
     let pre = linker.instantiate_pre(component)?;
@@ -172,6 +181,7 @@ pub async fn test(
         postgres: test_postgres::test(engine, test_config.clone(), &pre).await?,
         mysql: test_mysql::test(engine, test_config.clone(), &pre).await?,
         key_value: test_key_value::test(engine, test_config.clone(), &pre).await?,
+        llm: test_llm::test(engine, test_config.clone(), &pre).await?,
         wasi: test_wasi::test(engine, test_config, &pre).await?,
     })
 }
@@ -220,6 +230,7 @@ struct Context {
     postgres: Postgres,
     mysql: Mysql,
     key_value: KeyValue,
+    llm: Llm,
     config: Config,
 }
 
@@ -241,6 +252,7 @@ impl Context {
             postgres: Default::default(),
             mysql: Default::default(),
             key_value: Default::default(),
+            llm: Default::default(),
             config: Default::default(),
         }
     }

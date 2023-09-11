@@ -109,6 +109,10 @@ pub enum Command {
     KeyValueClose {
         store: u32,
     },
+    LlmInfer {
+        model: String,
+        prompt: String,
+    },
     WasiEnv {
         key: String,
     },
