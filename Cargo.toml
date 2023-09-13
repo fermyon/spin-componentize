@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-wasmparser = "0.107.0"
-wasm-encoder = "0.29.0"
-wit-component = "0.11.0"
-wit-parser = "0.8.0"
+wasmparser = "0.112.0"
+wasm-encoder = "0.32.0"
+wit-component = "0.14.0"
+wit-parser = "0.11.0"
 
 [dev-dependencies]
-wasmtime = { version = "10.0.1", features = ["component-model"] }
-wasmtime-wasi = "10.0.1"
-tokio = { version = "1", features = ["macros", "rt", "fs"] }
+wasmtime = { version = "13.0.0", features = ["component-model"] }
+wasmtime-wasi = "13.0.0"
+tokio = { version = "1.32.0", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }
