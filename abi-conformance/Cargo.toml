@@ -6,15 +6,20 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.69"
 async-trait = "0.1.66"
-wasmtime = { version = "10.0.1", features = ["component-model"] }
-wasmtime-wasi = { version = "10.0.1", features = ["tokio"] }
-cap-std = "1.0.15"
-tokio = { version = "1", features = ["macros", "rt", "fs", "rt-multi-thread"] }
+wasmtime = { version = "13.0.0", features = ["component-model"] }
+wasmtime-wasi = { version = "13.0.0", features = ["tokio"] }
+cap-std = "2.0.0"
+tokio = { version = "1.32.0", features = [
+    "macros",
+    "rt",
+    "fs",
+    "rt-multi-thread",
+] }
 clap = { version = "3.1.15", features = ["derive", "env"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 rand_core = "0.6.3"
-serde = { version = "1.0", features = [ "derive" ] }
+serde = { version = "1.0.188", features = ["derive"] }
 tempfile = "3.3.0"
 toml = "0.5.9"
 serde_json = "1.0"

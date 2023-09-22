@@ -36,7 +36,7 @@ use wasmtime::{
     component::{Component, InstancePre, Linker},
     Engine, Store,
 };
-use wasmtime_wasi::preview2::{pipe::WritePipe, Table, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi::preview2::{pipe::MemoryOutputPipe, Table, WasiCtx, WasiCtxBuilder, WasiView};
 
 pub use test_key_value::KeyValueReport;
 pub use test_llm::LlmReport;
@@ -161,7 +161,7 @@ pub async fn test(
     test_config: TestConfig,
 ) -> Result<Report> {
     let mut linker = Linker::<Context>::new(engine);
-    wasmtime_wasi::preview2::wasi::command::add_to_linker(&mut linker)?;
+    wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
     http::add_to_linker(&mut linker, |context| &mut context.http)?;
     redis::add_to_linker(&mut linker, |context| &mut context.redis)?;
     postgres::add_to_linker(&mut linker, |context| &mut context.postgres)?;
@@ -212,8 +212,9 @@ pub(crate) fn create_store_with_context_and_wasi(
     wasi_builder: impl FnOnce(WasiCtxBuilder) -> WasiCtxBuilder,
 ) -> Store<Context> {
     let mut table = Table::new();
-    let stderr = WritePipe::new_in_memory();
-    let builder = WasiCtxBuilder::new().set_stderr(stderr.clone());
+    let stderr = MemoryOutputPipe::new(1024);
+    let mut builder = WasiCtxBuilder::new();
+    builder.stderr(stderr.clone(), wasmtime_wasi::preview2::IsATTY::Yes);
     let wasi = wasi_builder(builder).build(&mut table).unwrap();
     let mut context = Context::new(test_config, wasi, table, stderr);
     context_builder(&mut context);
@@ -224,7 +225,7 @@ struct Context {
     test_config: TestConfig,
     wasi: WasiCtx,
     table: Table,
-    stderr: WritePipe<std::io::Cursor<Vec<u8>>>,
+    stderr: MemoryOutputPipe,
     http: Http,
     redis: Redis,
     postgres: Postgres,
@@ -235,12 +236,7 @@ struct Context {
 }
 
 impl Context {
-    fn new(
-        test_config: TestConfig,
-        wasi: WasiCtx,
-        table: Table,
-        stderr: WritePipe<std::io::Cursor<Vec<u8>>>,
-    ) -> Self {
+    fn new(test_config: TestConfig, wasi: WasiCtx, table: Table, stderr: MemoryOutputPipe) -> Self {
         Self {
             test_config,
             wasi,
@@ -320,11 +316,10 @@ async fn run_command(
                     .expect("failed to reset wasi context");
                 *store.data_mut().table_mut() = table;
                 let stderr =
-                    std::mem::replace(&mut store.data_mut().stderr, WritePipe::new_in_memory());
+                    std::mem::replace(&mut store.data_mut().stderr, MemoryOutputPipe::new(1024));
 
                 let (response,) = result.with_context(|| {
-                    String::from_utf8_lossy(&stderr.try_into_inner().unwrap().into_inner())
-                        .into_owned()
+                    String::from_utf8_lossy(&stderr.try_into_inner().unwrap().to_vec()).into_owned()
                 })?;
 
                 if response.status != 200 {
