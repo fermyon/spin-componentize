@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use case_helper::Command;
 use spin::http_types::{Method, Request, Response};
 use std::{
@@ -261,7 +261,7 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
             spin::key_value::close(store);
         }
         Command::LlmInfer { model, prompt } => {
-            spin::llm::infer(&model, &prompt, None);
+            let _ = spin::llm::infer(&model, &prompt, None);
         }
 
         Command::WasiEnv { key } => Command::env(key)?,

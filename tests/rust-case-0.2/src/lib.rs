@@ -355,7 +355,7 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
             key_value::close(*store);
         }
         Command::LlmInfer { model, prompt } => {
-            llm::infer(model, prompt, None);
+            let _ = llm::infer(model, prompt, None);
         }
 
         Command::WasiEnv { key } => Command::env(key.clone())?,
