@@ -226,6 +226,8 @@ fn add_custom_section(name: &str, data: &[u8], module: &[u8]) -> Result<Vec<u8>>
 
 #[cfg(test)]
 mod tests {
+    use std::{path::PathBuf, process};
+
     use anyhow::Context;
     use wasmtime_wasi::preview2::pipe::MemoryOutputPipe;
 
@@ -392,6 +394,7 @@ mod tests {
 
     #[tokio::test]
     async fn rust_wit_bindgen_02() -> Result<()> {
+        build_rust_test_case("rust-case-0.2");
         run_spin(
             &fs::read(concat!(
                 env!("OUT_DIR"),
@@ -404,6 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn rust_wit_bindgen_08() -> Result<()> {
+        build_rust_test_case("rust-case-0.8");
         run_spin(
             &fs::read(concat!(
                 env!("OUT_DIR"),
@@ -417,11 +421,25 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn go() -> Result<()> {
+        let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+        let mut cmd = process::Command::new("tinygo");
+        cmd.arg("build")
+            .current_dir("tests/go-case")
+            .arg("-target=wasi")
+            .arg("-gc=leaking")
+            .arg("-no-debug")
+            .arg("-o")
+            .arg(out_dir.join("go_case.wasm"))
+            .arg("main.go");
+
+        // If just skip this if TinyGo is not installed
+        _ = cmd.status();
         run_spin(&fs::read(concat!(env!("OUT_DIR"), "/go_case.wasm")).await?).await
     }
 
     #[tokio::test]
     async fn rust_command() -> Result<()> {
+        build_rust_test_case("rust-command");
         run_command(
             &fs::read(concat!(
                 env!("OUT_DIR"),
@@ -430,5 +448,18 @@ mod tests {
             .await?,
         )
         .await
+    }
+
+    fn build_rust_test_case(name: &str) {
+        let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+        let mut cmd = process::Command::new("cargo");
+        cmd.arg("build")
+            .current_dir(&format!("tests/{name}"))
+            .arg("--release")
+            .arg("--target=wasm32-wasi")
+            .env("CARGO_TARGET_DIR", out_dir);
+
+        let status = cmd.status().unwrap();
+        assert!(status.success());
     }
 }
