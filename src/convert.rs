@@ -8,12 +8,12 @@ use {
 
 struct IntoHeapType(wasmparser::HeapType);
 
-impl Into<HeapType> for IntoHeapType {
-    fn into(self) -> HeapType {
-        match self.0 {
+impl From<IntoHeapType> for HeapType {
+    fn from(val: IntoHeapType) -> Self {
+        match val.0 {
             wasmparser::HeapType::Func => HeapType::Func,
             wasmparser::HeapType::Extern => HeapType::Extern,
-            wasmparser::HeapType::Indexed(index) => HeapType::Indexed(index.into()),
+            wasmparser::HeapType::Indexed(index) => HeapType::Indexed(index),
             wasmparser::HeapType::Any => HeapType::Any,
             wasmparser::HeapType::None => HeapType::None,
             wasmparser::HeapType::NoExtern => HeapType::NoExtern,
@@ -28,20 +28,20 @@ impl Into<HeapType> for IntoHeapType {
 
 struct IntoRefType(wasmparser::RefType);
 
-impl Into<RefType> for IntoRefType {
-    fn into(self) -> RefType {
+impl From<IntoRefType> for RefType {
+    fn from(val: IntoRefType) -> Self {
         RefType {
-            nullable: self.0.is_nullable(),
-            heap_type: IntoHeapType(self.0.heap_type()).into(),
+            nullable: val.0.is_nullable(),
+            heap_type: IntoHeapType(val.0.heap_type()).into(),
         }
     }
 }
 
 struct IntoValType(wasmparser::ValType);
 
-impl Into<ValType> for IntoValType {
-    fn into(self) -> ValType {
-        match self.0 {
+impl From<IntoValType> for ValType {
+    fn from(val: IntoValType) -> Self {
+        match val.0 {
             wasmparser::ValType::I32 => ValType::I32,
             wasmparser::ValType::I64 => ValType::I64,
             wasmparser::ValType::F32 => ValType::F32,
@@ -54,9 +54,9 @@ impl Into<ValType> for IntoValType {
 
 struct IntoTagKind(wasmparser::TagKind);
 
-impl Into<TagKind> for IntoTagKind {
-    fn into(self) -> TagKind {
-        match self.0 {
+impl From<IntoTagKind> for TagKind {
+    fn from(val: IntoTagKind) -> Self {
+        match val.0 {
             wasmparser::TagKind::Exception => TagKind::Exception,
         }
     }
@@ -64,9 +64,9 @@ impl Into<TagKind> for IntoTagKind {
 
 pub struct IntoEntityType(pub TypeRef);
 
-impl Into<EntityType> for IntoEntityType {
-    fn into(self) -> EntityType {
-        match self.0 {
+impl From<IntoEntityType> for EntityType {
+    fn from(val: IntoEntityType) -> Self {
+        match val.0 {
             TypeRef::Func(index) => EntityType::Function(index),
             TypeRef::Table(ty) => EntityType::Table(TableType {
                 element_type: IntoRefType(ty.element_type).into(),
@@ -93,9 +93,9 @@ impl Into<EntityType> for IntoEntityType {
 
 pub struct IntoExportKind(pub ExternalKind);
 
-impl Into<ExportKind> for IntoExportKind {
-    fn into(self) -> ExportKind {
-        match self.0 {
+impl From<IntoExportKind> for ExportKind {
+    fn from(val: IntoExportKind) -> Self {
+        match val.0 {
             ExternalKind::Func => ExportKind::Func,
             ExternalKind::Table => ExportKind::Table,
             ExternalKind::Memory => ExportKind::Memory,

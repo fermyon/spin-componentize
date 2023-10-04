@@ -36,14 +36,11 @@ static EXPORT_INTERFACES: &[(&str, &str)] = &[
 
 pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>> {
     for payload in Parser::new(0).parse_all(module_or_component) {
-        match payload.context("unable to parse binary")? {
-            Payload::Version { encoding, .. } => {
-                return match encoding {
-                    Encoding::Component => Ok(Cow::Borrowed(module_or_component)),
-                    Encoding::Module => componentize(module_or_component).map(Cow::Owned),
-                };
-            }
-            _ => (),
+        if let Payload::Version { encoding, .. } = payload.context("unable to parse binary")? {
+            return match encoding {
+                Encoding::Component => Ok(Cow::Borrowed(module_or_component)),
+                Encoding::Module => componentize(module_or_component).map(Cow::Owned),
+            };
         }
     }
     Err(anyhow!("unable to determine wasm binary encoding"))
@@ -52,7 +49,7 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     match WitBindgenVersion::from_module(module)? {
         WitBindgenVersion::V0_2 => componentize_old_bindgen(module),
-        WitBindgenVersion::V0_8 => componentize_new_bindgen(module),
+        WitBindgenVersion::V0_12 => componentize_new_bindgen(module),
         WitBindgenVersion::Other(other) => Err(anyhow::anyhow!(
             "cannot adapt modules created with wit-bindgen version {other}"
         )),
@@ -63,7 +60,7 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
 /// version of wit-bindgen was used
 #[derive(Debug)]
 enum WitBindgenVersion {
-    V0_8,
+    V0_12,
     V0_2,
     Other(String),
 }
@@ -74,10 +71,10 @@ impl WitBindgenVersion {
         if let Some(producers) = bindgen.producers {
             if let Some(processors) = producers.get("processed-by") {
                 let bindgen_version = processors.iter().find_map(|(key, value)| {
-                    key.starts_with("wit-bindgen").then(|| value.as_str())
+                    key.starts_with("wit-bindgen").then_some(value.as_str())
                 });
                 match bindgen_version {
-                    Some(v) if v.starts_with("0.8.") => return Ok(Self::V0_8),
+                    Some(v) if v.starts_with("0.12.") => return Ok(Self::V0_12),
                     Some(other) => return Ok(Self::Other(other.to_owned())),
                     None => {}
                 }
@@ -92,7 +89,7 @@ impl WitBindgenVersion {
 pub fn componentize_new_bindgen(module: &[u8]) -> Result<Vec<u8>> {
     ComponentEncoder::default()
         .validate(true)
-        .module(&module)?
+        .module(module)?
         .adapter("wasi_snapshot_preview1", PREVIEW1_ADAPTER)?
         .encode()
 }
@@ -105,7 +102,7 @@ pub fn componentize_old_bindgen(module: &[u8]) -> Result<Vec<u8>> {
         .filter_map(|export| {
             EXPORT_INTERFACES
                 .iter()
-                .find_map(|(k, v)| (*k == &export).then_some(*v))
+                .find_map(|(k, v)| (*k == export).then_some(*v))
         })
         .collect::<HashSet<&str>>();
 
@@ -138,19 +135,19 @@ pub fn componentize_old_bindgen(module: &[u8]) -> Result<Vec<u8>> {
 
     let adapter = add_custom_section(CUSTOM_SECTION_NAME, &body, &adapter)?;
 
-    Ok(ComponentEncoder::default()
+    ComponentEncoder::default()
         .validate(true)
         .module(&module)?
         .adapter(ADAPTER_NAME, &adapter)?
-        .encode()?)
+        .encode()
 }
 
 pub fn componentize_command(module: &[u8]) -> Result<Vec<u8>> {
-    Ok(ComponentEncoder::default()
+    ComponentEncoder::default()
         .validate(true)
-        .module(&module)?
+        .module(module)?
         .adapter(ADAPTER_NAME, COMMAND_ADAPTER)?
-        .encode()?)
+        .encode()
 }
 
 fn retarget_imports_and_get_exports(target: &str, module: &[u8]) -> Result<(Vec<u8>, Vec<String>)> {
@@ -242,9 +239,7 @@ mod tests {
             component::{Component, Linker},
             Config, Engine, Store,
         },
-        wasmtime_wasi::preview2::{
-            command::Command, pipe::MemoryInputPipe, IsATTY, Table, WasiView,
-        },
+        wasmtime_wasi::preview2::{command::Command, pipe::MemoryInputPipe, Table, WasiView},
         wasmtime_wasi::preview2::{WasiCtx, WasiCtxBuilder},
     };
 
@@ -356,17 +351,15 @@ mod tests {
         wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
         let mut ctx = WasiCtxBuilder::new();
         let stdout = MemoryOutputPipe::new(1024);
-        ctx.stdin(
-            MemoryInputPipe::new("So rested he by the Tumtum tree".into()),
-            IsATTY::Yes,
-        )
-        .stdout(stdout.clone(), IsATTY::Yes)
+        ctx.stdin(MemoryInputPipe::new(
+            "So rested he by the Tumtum tree".into(),
+        ))
+        .stdout(stdout.clone())
         .args(&["Jabberwocky"]);
 
-        let mut table = Table::new();
         let wasi = Wasi {
-            ctx: ctx.build(&mut table).unwrap(),
-            table,
+            ctx: ctx.build(),
+            table: Table::new(),
         };
 
         let mut store = Store::new(&engine, wasi);
@@ -406,12 +399,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rust_wit_bindgen_08() -> Result<()> {
-        build_rust_test_case("rust-case-0.8");
+    async fn rust_wit_bindgen_012() -> Result<()> {
+        build_rust_test_case("rust-case-0.12");
         run_spin(
             &fs::read(concat!(
                 env!("OUT_DIR"),
-                "/wasm32-wasi/release/rust_case_08.wasm"
+                "/wasm32-wasi/release/rust_case_012.wasm"
             ))
             .await?,
         )

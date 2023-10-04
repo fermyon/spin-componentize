@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.69"
 async-trait = "0.1.66"
-wasmtime = { version = "13.0.0", features = ["component-model"] }
-wasmtime-wasi = { version = "13.0.0", features = ["tokio"] }
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "d4e4f610ce86289619e5962ae13031fec9e5d71d", features = ["component-model"] }
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "d4e4f610ce86289619e5962ae13031fec9e5d71d", features = ["tokio"] }
 cap-std = "2.0.0"
 tokio = { version = "1.32.0", features = [
     "macros",

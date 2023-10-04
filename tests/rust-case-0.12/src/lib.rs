@@ -8,19 +8,22 @@ use std::{
 
 #[macro_use]
 mod wit {
+    use super::Spin;
     wit_bindgen::generate!({
         world: "reactor",
-        path: "../wit-0.8",
-        macro_call_prefix: "wit::",
+        path: "../wit-0.12",
+        exports: {
+            "fermyon:spin/inbound-http": Spin,
+            "fermyon:spin/inbound-redis": Spin
+        }
     });
 }
 use wit::fermyon::spin::{self, postgres};
 use wit::{exports::fermyon::spin as exports, fermyon::spin::mysql};
 
 struct Spin;
-export_reactor!(Spin);
 
-impl exports::inbound_http::InboundHttp for Spin {
+impl exports::inbound_http::Guest for Spin {
     fn handle_request(request: Request) -> Response {
         if request.method != Method::Post {
             Response {
@@ -54,7 +57,7 @@ impl exports::inbound_http::InboundHttp for Spin {
     }
 }
 
-impl exports::inbound_redis::InboundRedis for Spin {
+impl exports::inbound_redis::Guest for Spin {
     fn handle_message(_body: Vec<u8>) -> Result<(), spin::redis::Error> {
         Ok(())
     }
@@ -123,10 +126,7 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
         }
 
         Command::RedisDel { address, keys } => {
-            spin::redis::del(
-                &address,
-                &keys.iter().map(String::as_str).collect::<Vec<_>>(),
-            )?;
+            spin::redis::del(&address, &keys)?;
         }
 
         Command::RedisSadd {
@@ -134,11 +134,7 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
             key,
             params,
         } => {
-            spin::redis::sadd(
-                &address,
-                &key,
-                &params.iter().map(String::as_str).collect::<Vec<_>>(),
-            )?;
+            spin::redis::sadd(&address, &key, &params)?;
         }
 
         Command::RedisSmembers { address, key } => {
@@ -150,11 +146,7 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
             key,
             params,
         } => {
-            spin::redis::srem(
-                &address,
-                &key,
-                &params.iter().map(String::as_str).collect::<Vec<_>>(),
-            )?;
+            spin::redis::srem(&address, &key, &params)?;
         }
 
         Command::RedisExecute {
@@ -167,7 +159,7 @@ fn execute(body: Option<Vec<u8>>) -> Result<()> {
                 &address,
                 &command,
                 &params
-                    .iter()
+                    .into_iter()
                     .map(|s| spin::redis_types::RedisParameter::Binary(s))
                     .collect::<Vec<_>>(),
             )?;
@@ -296,8 +288,8 @@ fn parse_pg(param: &str) -> Result<spin::postgres::ParameterValue> {
             "uint64" => PV::Uint64(value.parse()?),
             "floating32" => PV::Floating32(value.parse()?),
             "floating64" => PV::Floating64(value.parse()?),
-            "str" => PV::Str(value),
-            "binary" => PV::Binary(value.as_bytes()),
+            "str" => PV::Str(value.to_string()),
+            "binary" => PV::Binary(value.as_bytes().to_vec()),
             _ => bail!("unknown parameter type: {type_}"),
         }
     })
@@ -323,8 +315,8 @@ fn parse_mysql(param: &str) -> Result<spin::mysql::ParameterValue> {
             "uint64" => PV::Uint64(value.parse()?),
             "floating32" => PV::Floating32(value.parse()?),
             "floating64" => PV::Floating64(value.parse()?),
-            "str" => PV::Str(value),
-            "binary" => PV::Binary(value.as_bytes()),
+            "str" => PV::Str(value.to_string()),
+            "binary" => PV::Binary(value.as_bytes().to_vec()),
             _ => bail!("unknown parameter type: {type_}"),
         }
     })
