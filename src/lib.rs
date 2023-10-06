@@ -49,7 +49,7 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     match WitBindgenVersion::from_module(module)? {
         WitBindgenVersion::V0_2 => componentize_old_bindgen(module),
-        WitBindgenVersion::V0_12 => componentize_new_bindgen(module),
+        WitBindgenVersion::V0_8 | WitBindgenVersion::V0_12 => componentize_new_bindgen(module),
         WitBindgenVersion::Other(other) => Err(anyhow::anyhow!(
             "cannot adapt modules created with wit-bindgen version {other}"
         )),
@@ -60,6 +60,7 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
 /// version of wit-bindgen was used
 #[derive(Debug)]
 enum WitBindgenVersion {
+    V0_8,
     V0_12,
     V0_2,
     Other(String),
@@ -74,6 +75,7 @@ impl WitBindgenVersion {
                     key.starts_with("wit-bindgen").then_some(value.as_str())
                 });
                 match bindgen_version {
+                    Some(v) if v.starts_with("0.8.") => return Ok(Self::V0_8),
                     Some(v) if v.starts_with("0.12.") => return Ok(Self::V0_12),
                     Some(other) => return Ok(Self::Other(other.to_owned())),
                     None => {}
@@ -392,6 +394,19 @@ mod tests {
             &fs::read(concat!(
                 env!("OUT_DIR"),
                 "/wasm32-wasi/release/rust_case_02.wasm"
+            ))
+            .await?,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn rust_wit_bindgen_08() -> Result<()> {
+        build_rust_test_case("rust-case-0.8");
+        run_spin(
+            &fs::read(concat!(
+                env!("OUT_DIR"),
+                "/wasm32-wasi/release/rust_case_08.wasm"
             ))
             .await?,
         )
