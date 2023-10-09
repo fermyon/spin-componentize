@@ -244,9 +244,7 @@ mod tests {
             component::{Component, Linker},
             Config, Engine, Store,
         },
-        wasmtime_wasi::preview2::{
-            command::Command, pipe::MemoryInputPipe, IsATTY, Table, WasiView,
-        },
+        wasmtime_wasi::preview2::{command::Command, pipe::MemoryInputPipe, Table, WasiView},
         wasmtime_wasi::preview2::{WasiCtx, WasiCtxBuilder},
     };
 
@@ -358,16 +356,15 @@ mod tests {
         wasmtime_wasi::preview2::command::add_to_linker(&mut linker)?;
         let mut ctx = WasiCtxBuilder::new();
         let stdout = MemoryOutputPipe::new(1024);
-        ctx.stdin(
-            MemoryInputPipe::new("So rested he by the Tumtum tree".into()),
-            IsATTY::Yes,
-        )
-        .stdout(stdout.clone(), IsATTY::Yes)
+        ctx.stdin(MemoryInputPipe::new(
+            "So rested he by the Tumtum tree".into(),
+        ))
+        .stdout(stdout.clone())
         .args(&["Jabberwocky"]);
 
-        let mut table = Table::new();
+        let table = Table::new();
         let wasi = Wasi {
-            ctx: ctx.build(&mut table).unwrap(),
+            ctx: ctx.build(),
             table,
         };
 

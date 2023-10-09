@@ -211,11 +211,11 @@ pub(crate) fn create_store_with_context_and_wasi(
     context_builder: impl FnOnce(&mut Context),
     wasi_builder: impl FnOnce(WasiCtxBuilder) -> WasiCtxBuilder,
 ) -> Store<Context> {
-    let mut table = Table::new();
+    let table = Table::new();
     let stderr = MemoryOutputPipe::new(1024);
     let mut builder = WasiCtxBuilder::new();
-    builder.stderr(stderr.clone(), wasmtime_wasi::preview2::IsATTY::Yes);
-    let wasi = wasi_builder(builder).build(&mut table).unwrap();
+    builder.stderr(stderr.clone());
+    let wasi = wasi_builder(builder).build();
     let mut context = Context::new(test_config, wasi, table, stderr);
     context_builder(&mut context);
     Store::new(engine, context)
@@ -310,10 +310,8 @@ async fn run_command(
                 // references to the `stderr` pipe, ensuring `try_into_inner` succeeds below.  This is also needed
                 // in case the caller attached its own pipes for e.g. stdin and/or stdout and expects exclusive
                 // ownership once we return.
-                let mut table = Table::new();
-                store.data_mut().wasi = WasiCtxBuilder::new()
-                    .build(&mut table)
-                    .expect("failed to reset wasi context");
+                let table = Table::new();
+                store.data_mut().wasi = WasiCtxBuilder::new().build();
                 *store.data_mut().table_mut() = table;
                 let stderr =
                     std::mem::replace(&mut store.data_mut().stderr, MemoryOutputPipe::new(1024));
