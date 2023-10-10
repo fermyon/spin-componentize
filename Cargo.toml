@@ -11,9 +11,9 @@ wit-component = "0.14.5"
 wit-parser = "0.11.3"
 
 [dev-dependencies]
-wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "4c34504efb258a0c51c6a5f3f8a5b24d987993b9", features = [
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-14.0.0", features = [
     "component-model",
 ] }
-wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "4c34504efb258a0c51c6a5f3f8a5b24d987993b9" }
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-14.0.0" }
 tokio = { version = "1.32.0", features = ["macros", "rt", "fs"] }
 spin-abi-conformance = { path = "abi-conformance" }

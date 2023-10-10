@@ -6,10 +6,10 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.69"
 async-trait = "0.1.66"
-wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "4c34504efb258a0c51c6a5f3f8a5b24d987993b9", features = [
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-14.0.0", features = [
     "component-model",
 ] }
-wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "4c34504efb258a0c51c6a5f3f8a5b24d987993b9", features = [
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", branch = "release-14.0.0", features = [
     "tokio",
 ] }
 cap-std = "2.0.0"
