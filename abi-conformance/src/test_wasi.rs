@@ -21,7 +21,7 @@ use std::{
 use wasmtime::{component::InstancePre, Engine};
 use wasmtime_wasi::preview2::{
     pipe::{MemoryInputPipe, MemoryOutputPipe},
-    HostWallClock, IsATTY,
+    HostWallClock,
 };
 
 /// Report of which WASI functions a module successfully used, if any
@@ -103,7 +103,7 @@ pub(crate) async fn test(
             let mut store =
                 crate::create_store_with_wasi(engine, test_config.clone(), |mut wasi| {
                     wasi.env("foo".to_owned(), "bar".to_owned())
-                        .stdout(stdout.clone(), IsATTY::Yes);
+                        .stdout(stdout.clone());
                     wasi
                 });
 
@@ -137,7 +137,7 @@ pub(crate) async fn test(
             let stdout = MemoryOutputPipe::new(1024);
             let mut store =
                 crate::create_store_with_wasi(engine, test_config.clone(), |mut wasi| {
-                    wasi.stdout(stdout.clone(), IsATTY::Yes).wall_clock(MyClock);
+                    wasi.stdout(stdout.clone()).wall_clock(MyClock);
                     wasi
                 });
 
@@ -199,8 +199,7 @@ pub(crate) async fn test(
 
             let mut store =
                 crate::create_store_with_wasi(engine, test_config.clone(), |mut wasi| {
-                    wasi.stdout(stdout.clone(), IsATTY::Yes)
-                        .stdin(stdin, IsATTY::Yes);
+                    wasi.stdout(stdout.clone()).stdin(stdin);
                     wasi
                 });
 
@@ -228,7 +227,7 @@ pub(crate) async fn test(
 
             let mut store =
                 crate::create_store_with_wasi(engine, test_config.clone(), |mut wasi| {
-                    wasi.stdout(stdout.clone(), IsATTY::Yes).preopened_dir(
+                    wasi.stdout(stdout.clone()).preopened_dir(
                         dir,
                         perms,
                         file_perms,
@@ -262,7 +261,7 @@ pub(crate) async fn test(
             let file_perms = wasmtime_wasi::preview2::FilePerms::all();
             let mut store =
                 crate::create_store_with_wasi(engine, test_config.clone(), |mut wasi| {
-                    wasi.stdout(stdout.clone(), IsATTY::Yes).preopened_dir(
+                    wasi.stdout(stdout.clone()).preopened_dir(
                         dir,
                         perms,
                         file_perms,
@@ -298,7 +297,7 @@ pub(crate) async fn test(
 
             let mut store =
                 crate::create_store_with_wasi(engine, test_config.clone(), |mut wasi| {
-                    wasi.stdout(stdout.clone(), IsATTY::Yes).preopened_dir(
+                    wasi.stdout(stdout.clone()).preopened_dir(
                         dir,
                         perms,
                         file_perms,
