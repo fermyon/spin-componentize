@@ -4,16 +4,30 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.71"
+anyhow = { workspace = true }
 wasmparser = "0.115.0"
 wasm-encoder = "0.35.0"
 wit-component = "0.16.0"
 wit-parser = "0.12.1"
 
 [dev-dependencies]
-wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "c796ce7376a57a40605f03e74bd78cefcc9acf3a", features = [
+wasmtime = { workspace = true }
+wasmtime-wasi = { workspace = true }
+tokio = { workspace = true }
+spin-abi-conformance = { path = "abi-conformance" }
+
+[workspace]
+members = [
+    "abi-conformance",
+    "tests/rust-case-0.2",
+    "tests/rust-case-0.8",
+    "tests/rust-command",
+]
+
+[workspace.dependencies]
+anyhow = "1.0.71"
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "2ffbc36c377b98e4eabe89ae37bb334605d904cc", features = [
     "component-model",
 ] }
-wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "c796ce7376a57a40605f03e74bd78cefcc9acf3a" }
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "2ffbc36c377b98e4eabe89ae37bb334605d904cc" }
 tokio = { version = "1.32.0", features = ["macros", "rt", "fs"] }
-spin-abi-conformance = { path = "abi-conformance" }
