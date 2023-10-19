@@ -52,7 +52,7 @@ pub fn componentize_if_necessary(module_or_component: &[u8]) -> Result<Cow<[u8]>
 pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
     match WitBindgenVersion::from_module(module)? {
         WitBindgenVersion::V0_2 => componentize_old_bindgen(module),
-        WitBindgenVersion::V0_8 | WitBindgenVersion::V0_12 => componentize_new_bindgen(module),
+        WitBindgenVersion::GreaterThanV0_4 => componentize_new_bindgen(module),
         WitBindgenVersion::Other(other) => Err(anyhow::anyhow!(
             "cannot adapt modules created with wit-bindgen version {other}"
         )),
@@ -63,8 +63,7 @@ pub fn componentize(module: &[u8]) -> Result<Vec<u8>> {
 /// version of wit-bindgen was used
 #[derive(Debug)]
 enum WitBindgenVersion {
-    V0_12,
-    V0_8,
+    GreaterThanV0_4,
     V0_2,
     Other(String),
 }
@@ -77,11 +76,23 @@ impl WitBindgenVersion {
                 let bindgen_version = processors.iter().find_map(|(key, value)| {
                     key.starts_with("wit-bindgen").then(|| value.as_str())
                 });
-                match bindgen_version {
-                    Some(v) if v.starts_with("0.12.") => return Ok(Self::V0_12),
-                    Some(v) if v.starts_with("0.8.") => return Ok(Self::V0_8),
-                    Some(other) => return Ok(Self::Other(other.to_owned())),
-                    None => {}
+                if let Some(v) = bindgen_version {
+                    let mut parts = v.split('.');
+                    let Some(major) = parts.next().and_then(|p| p.parse::<u8>().ok()) else {
+                        return Ok(Self::Other(v.to_owned()));
+                    };
+                    let Some(minor) = parts.next().and_then(|p| p.parse::<u8>().ok()) else {
+                        return Ok(Self::Other(v.to_owned()));
+                    };
+                    if (major == 0 && minor < 5) || major >= 1 {
+                        return Ok(Self::Other(v.to_owned()));
+                    }
+                    // Either there should be no patch version or nothing after patch
+                    if parts.next().is_none() || parts.next().is_none() {
+                        return Ok(Self::GreaterThanV0_4);
+                    } else {
+                        return Ok(Self::Other(v.to_owned()));
+                    }
                 }
             }
         }
