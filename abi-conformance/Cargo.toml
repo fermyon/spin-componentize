@@ -4,21 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.69"
+anyhow = { workspace = true }
 async-trait = "0.1.66"
-wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "c796ce7376a57a40605f03e74bd78cefcc9acf3a", features = [
-    "component-model",
-] }
-wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "c796ce7376a57a40605f03e74bd78cefcc9acf3a", features = [
-    "tokio",
-] }
+wasmtime = { workspace = true }
+wasmtime-wasi = { workspace = true }
 cap-std = "2.0.0"
-tokio = { version = "1.32.0", features = [
-    "macros",
-    "rt",
-    "fs",
-    "rt-multi-thread",
-] }
+tokio = { workspace = true }
 clap = { version = "3.1.15", features = ["derive", "env"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
