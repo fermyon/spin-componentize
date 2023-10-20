@@ -7,8 +7,8 @@ edition = "2021"
 anyhow = "1.0.71"
 wasmparser = "0.115.0"
 wasm-encoder = "0.35.0"
-wit-component = "0.15.0"
-wit-parser = "0.12.0"
+wit-component = "0.16.0"
+wit-parser = "0.12.1"
 
 [dev-dependencies]
 wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "c796ce7376a57a40605f03e74bd78cefcc9acf3a", features = [
