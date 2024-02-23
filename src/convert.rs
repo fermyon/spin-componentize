@@ -13,7 +13,9 @@ impl Into<HeapType> for IntoHeapType {
         match self.0 {
             wasmparser::HeapType::Func => HeapType::Func,
             wasmparser::HeapType::Extern => HeapType::Extern,
-            wasmparser::HeapType::Indexed(index) => HeapType::Indexed(index.into()),
+            wasmparser::HeapType::Concrete(_) => {
+                panic!("user-defined heap types not yet supported")
+            }
             wasmparser::HeapType::Any => HeapType::Any,
             wasmparser::HeapType::None => HeapType::None,
             wasmparser::HeapType::NoExtern => HeapType::NoExtern,
@@ -22,6 +24,7 @@ impl Into<HeapType> for IntoHeapType {
             wasmparser::HeapType::Struct => HeapType::Struct,
             wasmparser::HeapType::Array => HeapType::Array,
             wasmparser::HeapType::I31 => HeapType::I31,
+            wasmparser::HeapType::Exn => HeapType::Exn,
         }
     }
 }
