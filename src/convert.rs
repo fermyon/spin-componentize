@@ -13,12 +13,9 @@ impl Into<HeapType> for IntoHeapType {
         match self.0 {
             wasmparser::HeapType::Func => HeapType::Func,
             wasmparser::HeapType::Extern => HeapType::Extern,
-            wasmparser::HeapType::Concrete(wasmparser::UnpackedIndex::Module(index)) => {
-                HeapType::Concrete(index)
+            wasmparser::HeapType::Concrete(_) => {
+                panic!("user-defined heap types not yet supported")
             }
-            wasmparser::HeapType::Concrete(
-                wasmparser::UnpackedIndex::RecGroup(_) | wasmparser::UnpackedIndex::Id(_),
-            ) => todo!(),
             wasmparser::HeapType::Any => HeapType::Any,
             wasmparser::HeapType::None => HeapType::None,
             wasmparser::HeapType::NoExtern => HeapType::NoExtern,
