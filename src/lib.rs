@@ -255,7 +255,9 @@ mod tests {
             component::{Component, Linker},
             Config, Engine, Store,
         },
-        wasmtime_wasi::preview2::{command::Command, pipe::MemoryInputPipe, Table, WasiView},
+        wasmtime_wasi::preview2::{
+            command::Command, pipe::MemoryInputPipe, ResourceTable, WasiView,
+        },
         wasmtime_wasi::preview2::{WasiCtx, WasiCtxBuilder},
     };
 
@@ -343,22 +345,14 @@ mod tests {
 
         struct Wasi {
             ctx: WasiCtx,
-            table: Table,
+            table: ResourceTable,
         }
         impl WasiView for Wasi {
-            fn table(&self) -> &Table {
-                &self.table
-            }
-
-            fn table_mut(&mut self) -> &mut Table {
+            fn table(&mut self) -> &mut ResourceTable {
                 &mut self.table
             }
 
-            fn ctx(&self) -> &WasiCtx {
-                &self.ctx
-            }
-
-            fn ctx_mut(&mut self) -> &mut WasiCtx {
+            fn ctx(&mut self) -> &mut WasiCtx {
                 &mut self.ctx
             }
         }
@@ -373,7 +367,7 @@ mod tests {
         .stdout(stdout.clone())
         .args(&["Jabberwocky"]);
 
-        let table = Table::new();
+        let table = ResourceTable::new();
         let wasi = Wasi {
             ctx: ctx.build(),
             table,

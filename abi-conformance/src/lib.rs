@@ -36,7 +36,9 @@ use wasmtime::{
     component::{Component, InstancePre, Linker},
     Engine, Store,
 };
-use wasmtime_wasi::preview2::{pipe::MemoryOutputPipe, Table, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi::preview2::{
+    pipe::MemoryOutputPipe, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView,
+};
 
 pub use test_key_value::KeyValueReport;
 pub use test_llm::LlmReport;
@@ -58,7 +60,7 @@ mod test_wasi;
 
 wasmtime::component::bindgen!({
     path: "../wit",
-    world: "fermyon:spin/reactor",
+    world: "fermyon:spin/host",
     async: true
 });
 pub use fermyon::spin::*;
@@ -211,7 +213,7 @@ pub(crate) fn create_store_with_context_and_wasi(
     context_builder: impl FnOnce(&mut Context),
     wasi_builder: impl FnOnce(WasiCtxBuilder) -> WasiCtxBuilder,
 ) -> Store<Context> {
-    let table = Table::new();
+    let table = ResourceTable::new();
     let stderr = MemoryOutputPipe::new(1024);
     let mut builder = WasiCtxBuilder::new();
     builder.stderr(stderr.clone());
@@ -224,7 +226,7 @@ pub(crate) fn create_store_with_context_and_wasi(
 struct Context {
     test_config: TestConfig,
     wasi: WasiCtx,
-    table: Table,
+    table: ResourceTable,
     stderr: MemoryOutputPipe,
     http: Http,
     redis: Redis,
@@ -236,7 +238,12 @@ struct Context {
 }
 
 impl Context {
-    fn new(test_config: TestConfig, wasi: WasiCtx, table: Table, stderr: MemoryOutputPipe) -> Self {
+    fn new(
+        test_config: TestConfig,
+        wasi: WasiCtx,
+        table: ResourceTable,
+        stderr: MemoryOutputPipe,
+    ) -> Self {
         Self {
             test_config,
             wasi,
@@ -255,19 +262,11 @@ impl Context {
 }
 
 impl WasiView for Context {
-    fn table(&self) -> &Table {
-        &self.table
-    }
-
-    fn table_mut(&mut self) -> &mut Table {
+    fn table(&mut self) -> &mut ResourceTable {
         &mut self.table
     }
 
-    fn ctx(&self) -> &WasiCtx {
-        &self.wasi
-    }
-
-    fn ctx_mut(&mut self) -> &mut WasiCtx {
+    fn ctx(&mut self) -> &mut WasiCtx {
         &mut self.wasi
     }
 }
@@ -310,9 +309,9 @@ async fn run_command(
                 // references to the `stderr` pipe, ensuring `try_into_inner` succeeds below.  This is also needed
                 // in case the caller attached its own pipes for e.g. stdin and/or stdout and expects exclusive
                 // ownership once we return.
-                let table = Table::new();
+                let table = ResourceTable::new();
                 store.data_mut().wasi = WasiCtxBuilder::new().build();
-                *store.data_mut().table_mut() = table;
+                *store.data_mut().table() = table;
                 let stderr =
                     std::mem::replace(&mut store.data_mut().stderr, MemoryOutputPipe::new(1024));
 

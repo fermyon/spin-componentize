@@ -1,4 +1,14 @@
 interface rdbms-types {
+  /// Errors related to interacting with a database.
+  variant error {
+      connection-failed(string),
+      bad-parameter(string),
+      query-failed(string),
+      value-conversion-failed(string),
+      other(string)
+  }
+
+  /// Data types for a database column
   enum db-data-type {
       boolean,
       int8,
@@ -16,6 +26,7 @@ interface rdbms-types {
       other,
   }
 
+  /// Database values
   variant db-value {
       boolean(bool),
       int8(s8),
@@ -34,6 +45,7 @@ interface rdbms-types {
       unsupported,
   }
 
+  /// Values used in parameterized queries
   variant parameter-value {
       boolean(bool),
       int8(s8),
@@ -51,13 +63,16 @@ interface rdbms-types {
       db-null,
   }
 
+  /// A database column
   record column {
       name: string,
       data-type: db-data-type,
   }
 
-  type row = list<db-value>
+  /// A database row
+  type row = list<db-value>;
 
+  /// A set of database rows
   record row-set {
       columns: list<column>,
       rows: list<row>,
