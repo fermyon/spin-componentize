@@ -1,26 +1,27 @@
+# IMPORTANT: This repo is no longer under development. 
+
+All development of spin-componentize has been moved into [the Spin repo](https://github.com/fermyon/spin/tree/main/crates/componentize).
+
 # spin-componentize
 
 This library converts a Spin module to a
 [component](https://github.com/WebAssembly/component-model/).
 
-See [reactor.wit](wasmtime/crates/wasi/wit/deps/preview/reactor.wit) for the definition of the Spin world.
 Note that although the world specifies both `inbound-redis` and `inbound-http`
 exports, `spin-componentize` will only export either or both according to what
 the original module exported.
 
 ## Building
 
-First, install [Rust](https://rustup.rs/) v1.68 or later.  You'll also need to
-install a couple of Wasm targets:
+This crate requires a [Rust](https://rustup.rs/) installation v1.68 or later and a couple of Wasm targets:
 
 ```shell
 rustup target add wasm32-wasi
 rustup target add wasm32-unknown-unknown
 ```
 
-Then run `cargo build --release`.  Note that this is currently only a library
-and does not yet have a CLI interface, although that would be easy to add if
-desired.
+Note that this is currently only a library and does not yet have a CLI interface, although that
+would be easy to add if desired.
 
 ## Testing
 
@@ -28,6 +29,6 @@ To test whether the spin componentize process produces wasm components that can 
 
 ## Wit and Adapters
 
-spin-componentize and the abi conformance tests use custom wit definitions and component adapters built from wasmtime.
+spin-componentize and the abi conformance tests use component adapters built from wasmtime.
 
-See the [adapters README](./adapters/README.md) and [wit README](./wit/README.md) for more information.
+See the [adapters README](./adapters/README.md) for more information.
