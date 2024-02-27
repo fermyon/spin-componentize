@@ -1,19 +1,15 @@
 interface mysql {
-  use rdbms-types.{parameter-value, row-set}
+  use rdbms-types.{parameter-value, row-set, error};
 
-  // General purpose error.
-  variant mysql-error {
-      success,
-      connection-failed(string),
-      bad-parameter(string),
-      query-failed(string),
-      value-conversion-failed(string),
-      other-error(string)
+  /// A connection to a MySQL database.
+  resource connection {
+    /// Open a connection to the MySQL instance at `address`.
+    open: static func(address: string) -> result<connection, error>;
+
+    /// query the database: select
+    query: func(statement: string, params: list<parameter-value>) -> result<row-set, error>;
+
+    /// execute command to the database: insert, update, delete
+    execute: func(statement: string, params: list<parameter-value>) -> result<_, error>;
   }
-
-  // query the database: select
-  query: func(address: string, statement: string, params: list<parameter-value>) -> result<row-set, mysql-error>
-
-  // execute command to the database: insert, update, delete
-  execute: func(address: string, statement: string, params: list<parameter-value>) -> result<_, mysql-error>
 }
